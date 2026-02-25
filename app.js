@@ -459,7 +459,7 @@ function renderFinanceTable() {
 
   el.financeTable.innerHTML = `<thead><tr>
     <th>Фамилия</th><th>Должность</th><th>Отдел</th><th>Оформление</th><th>Форма оплаты</th><th>Смен</th><th>Часы</th>
-    <th>Начислено</th><th>НДФЛ</th><th>Премии/штрафы</th><th>К выплате</th><th>Выплачено</th><th>Остаток</th><th>Действия</th>
+    <th>Начислено</th><th>НДФЛ</th><th>Премии</th><th>Штрафы</th><th>К выплате</th><th>Выплачено</th><th>Остаток</th><th>Действия</th>
   </tr></thead><tbody>${rows
     .map(({ user, metrics }) => {
       return `<tr>
@@ -472,7 +472,8 @@ function renderFinanceTable() {
         <td>${metrics.hours.toFixed(2)}</td>
         <td>${metrics.gross.toFixed(2)}</td>
         <td>${metrics.ndfl.toFixed(2)}</td>
-        <td>${metrics.adjustmentsNet.toFixed(2)}</td>
+        <td>${metrics.bonuses.toFixed(2)}</td>
+        <td>${metrics.fines.toFixed(2)}</td>
         <td>${metrics.netDue.toFixed(2)}</td>
         <td>${metrics.paid.toFixed(2)}</td>
         <td>${metrics.remaining.toFixed(2)}</td>
@@ -563,7 +564,7 @@ function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
     .reduce((acc, p) => acc + Number(p.amount || 0), 0);
   const remaining = Math.max(0, netDue - paid);
 
-  return { shiftCount, hours, gross, ndfl, adjustmentsNet, netDue, paid, remaining };
+  return { shiftCount, hours, gross, ndfl, bonuses, fines, adjustmentsNet, netDue, paid, remaining };
 }
 
 function calculateNdfl(user, gross) {
@@ -621,7 +622,7 @@ function renderMyCabinet() {
       <label>Месяц <input type="month" name="month" value="${month}" /></label>
       <button class="btn btn-secondary" type="submit">Показать</button>
     </form>
-    <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
+    <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
   `;
 
   const monthForm = document.getElementById("month-selector");
