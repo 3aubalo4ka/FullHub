@@ -1,4 +1,6 @@
-const STORAGE_KEY = "fullhub-data-v1";
+const STORAGE_KEY = "fullhub-data-v2";
+const SHIFT_HOURS_STANDARD = 9;
+const NDFL_RATE = 0.13;
 
 const roleClassByPosition = {
   грузчик: "role-loader",
@@ -127,8 +129,10 @@ function renderEmployeeForm() {
     <label>Имя<input name="firstName" required /></label>
     <label>Отчество<input name="middleName" required /></label>
     <label>Должность${makeSelect("position", d.positions)}</label>
+    <label>Трудоустройство${makeSelect("employmentType", ["Официально", "Неофициально"], "Неофициально")}</label>
     <label>Форма оплаты${makeSelect("payForm", d.payForms)}</label>
-    <label>Часовая ставка<input name="hourlyRate" type="number" min="0" step="1" placeholder="Для часовой оплаты" /></label>
+    <label>Часовая ставка<input name="hourlyRate" type="number" min="0" step="0.01" placeholder="Для часовой оплаты" /></label>
+    <label>Оклад в месяц<input name="monthlySalary" type="number" min="0" step="1" placeholder="Для оклада" /></label>
     <label>Отдел${makeSelect("department", d.departments)}</label>
     <label>Телефон (логин)<input name="phone" required /></label>
     <label>Пароль<input name="password" required /></label>
@@ -136,12 +140,16 @@ function renderEmployeeForm() {
   `;
   const paySel = el.employeeForm.querySelector('select[name="payForm"]');
   const rateInput = el.employeeForm.querySelector('input[name="hourlyRate"]');
-  const syncRate = () => {
-    rateInput.disabled = paySel.value !== "Часовая";
+  const salaryInput = el.employeeForm.querySelector('input[name="monthlySalary"]');
+  const syncPayFields = () => {
+    const payForm = paySel.value;
+    rateInput.disabled = payForm !== "Часовая";
+    salaryInput.disabled = payForm !== "Оклад";
     if (rateInput.disabled) rateInput.value = "";
+    if (salaryInput.disabled) salaryInput.value = "";
   };
-  paySel.addEventListener("change", syncRate);
-  syncRate();
+  paySel.addEventListener("change", syncPayFields);
+  syncPayFields();
 
   el.employeeForm.onsubmit = (e) => {
     e.preventDefault();
@@ -149,19 +157,20 @@ function renderEmployeeForm() {
     const user = {
       id: crypto.randomUUID(),
       role: "employee",
-      lastName: fd.get("lastName"),
-      firstName: fd.get("firstName"),
-      middleName: fd.get("middleName"),
-      position: fd.get("position"),
-      payForm: fd.get("payForm"),
+      lastName: String(fd.get("lastName") || ""),
+      firstName: String(fd.get("firstName") || ""),
+      middleName: String(fd.get("middleName") || ""),
+      position: String(fd.get("position") || ""),
+      employmentType: String(fd.get("employmentType") || "Неофициально"),
+      payForm: String(fd.get("payForm") || "Часовая"),
       hourlyRate: Number(fd.get("hourlyRate") || 0),
-      department: fd.get("department"),
-      phone: fd.get("phone"),
-      password: fd.get("password"),
+      monthlySalary: Number(fd.get("monthlySalary") || 0),
+      department: String(fd.get("department") || ""),
+      phone: String(fd.get("phone") || ""),
+      password: String(fd.get("password") || ""),
     };
     state.data.users.push(user);
     persist();
-    el.employeeForm.reset();
     render();
   };
 }
@@ -188,13 +197,14 @@ function renderDictionaries() {
     form.onsubmit = (e) => {
       e.preventDefault();
       const key = form.dataset.key;
-      const v = new FormData(form).get("value").toString().trim();
+      const v = String(new FormData(form).get("value") || "").trim();
       if (!v) return;
       if (!state.data.dictionaries[key].includes(v)) state.data.dictionaries[key].push(v);
       persist();
       render();
     };
   });
+
   el.dictControls.querySelectorAll(".dict-del").forEach((btn) => {
     btn.onclick = () => {
       const { key, index } = btn.dataset;
@@ -207,7 +217,21 @@ function renderDictionaries() {
 
 function renderEmployeesTable() {
   const users = state.data.users.filter((u) => u.role !== "admin");
-  const head = ["Фамилия", "Имя", "Отчество", "Должность", "Форма оплаты", "Ставка", "Отдел", "Телефон", "Пароль", "Действия"];
+  const headers = [
+    "Фамилия",
+    "Имя",
+    "Отчество",
+    "Должность",
+    "Оформление",
+    "Форма оплаты",
+    "Ставка",
+    "Оклад",
+    "Отдел",
+    "Телефон",
+    "Пароль",
+    "Действия",
+  ];
+
   const rows = users
     .map((u) => {
       return `<tr data-id="${u.id}">
@@ -215,8 +239,10 @@ function renderEmployeesTable() {
         <td><input data-f="firstName" value="${u.firstName}"/></td>
         <td><input data-f="middleName" value="${u.middleName}"/></td>
         <td>${makeSelect("position", state.data.dictionaries.positions, u.position, "data-f=position")}</td>
+        <td>${makeSelect("employmentType", ["Официально", "Неофициально"], u.employmentType || "Неофициально", "data-f=employmentType")}</td>
         <td>${makeSelect("payForm", state.data.dictionaries.payForms, u.payForm, "data-f=payForm")}</td>
-        <td><input type="number" min="0" data-f="hourlyRate" value="${u.hourlyRate || ""}"/></td>
+        <td><input type="number" min="0" step="0.01" data-f="hourlyRate" value="${u.hourlyRate || ""}"/></td>
+        <td><input type="number" min="0" step="1" data-f="monthlySalary" value="${u.monthlySalary || ""}"/></td>
         <td>${makeSelect("department", state.data.dictionaries.departments, u.department, "data-f=department")}</td>
         <td><input data-f="phone" value="${u.phone}"/></td>
         <td><input data-f="password" value="${u.password}"/></td>
@@ -224,26 +250,30 @@ function renderEmployeesTable() {
       </tr>`;
     })
     .join("");
-  el.employeesTable.innerHTML = `<thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody>`;
 
-  el.employeesTable.querySelectorAll(".save-user").forEach((b) => {
-    b.onclick = () => {
-      const tr = b.closest("tr");
+  el.employeesTable.innerHTML = `<thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody>`;
+
+  el.employeesTable.querySelectorAll(".save-user").forEach((btn) => {
+    btn.onclick = () => {
+      const tr = btn.closest("tr");
       const user = state.data.users.find((x) => x.id === tr.dataset.id);
       tr.querySelectorAll("[data-f]").forEach((f) => {
         user[f.dataset.f] = f.value;
       });
       user.hourlyRate = Number(user.hourlyRate || 0);
+      user.monthlySalary = Number(user.monthlySalary || 0);
       persist();
       render();
     };
   });
-  el.employeesTable.querySelectorAll(".del-user").forEach((b) => {
-    b.onclick = () => {
-      const id = b.closest("tr").dataset.id;
+
+  el.employeesTable.querySelectorAll(".del-user").forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.closest("tr").dataset.id;
       state.data.users = state.data.users.filter((u) => u.id !== id);
       state.data.shifts = state.data.shifts.filter((s) => s.userId !== id);
       state.data.payouts = state.data.payouts.filter((p) => p.userId !== id);
+      state.data.adjustments = state.data.adjustments.filter((a) => a.userId !== id);
       persist();
       render();
     };
@@ -273,6 +303,7 @@ function renderCalendar() {
     if (d.getMonth() !== month) day.classList.add("muted");
     if (iso === state.selectedDate) day.classList.add("selected");
     day.innerHTML = `<div class="day-num">${d.getDate()}</div>`;
+
     const shifts = state.data.shifts.filter((s) => s.date === iso);
     shifts.forEach((s) => {
       const user = state.data.users.find((u) => u.id === s.userId);
@@ -280,7 +311,7 @@ function renderCalendar() {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = `shift-chip ${roleClassByPosition[user.position] || ""}`;
-      chip.textContent = `${user.lastName} ${user.payForm === "Часовая" ? `${s.start}-${s.end}` : "(сделка)"}`;
+      chip.textContent = `${user.lastName} ${user.payForm === "Сдельная" ? "(сделка)" : `${s.start}-${s.end}`}`;
       chip.onclick = (e) => {
         e.stopPropagation();
         state.selectedDate = iso;
@@ -288,6 +319,7 @@ function renderCalendar() {
       };
       day.appendChild(chip);
     });
+
     day.onclick = () => {
       state.selectedDate = iso;
       render();
@@ -308,16 +340,17 @@ function renderShiftForm() {
     <label>Сумма за сделку<input type="number" min="0" step="1" name="pieceAmount" placeholder="для сдельной"/></label>
     <button class="btn btn-primary" type="submit">Добавить смену</button>
   `;
+
   const userSel = el.shiftForm.querySelector('select[name="userId"]');
   const start = el.shiftForm.querySelector('input[name="start"]');
   const end = el.shiftForm.querySelector('input[name="end"]');
   const piece = el.shiftForm.querySelector('input[name="pieceAmount"]');
   const sync = () => {
     const u = state.data.users.find((x) => x.id === userSel.value);
-    const hourly = u?.payForm === "Часовая";
-    start.disabled = !hourly;
-    end.disabled = !hourly;
-    piece.disabled = hourly;
+    const isPiece = u?.payForm === "Сдельная";
+    start.disabled = isPiece;
+    end.disabled = isPiece;
+    piece.disabled = !isPiece;
   };
   userSel.onchange = sync;
   sync();
@@ -326,15 +359,18 @@ function renderShiftForm() {
     e.preventDefault();
     const fd = new FormData(el.shiftForm);
     const user = state.data.users.find((x) => x.id === fd.get("userId"));
-    const row = {
+    if (!user) return;
+
+    const shift = {
       id: crypto.randomUUID(),
       date: state.selectedDate,
-      userId: fd.get("userId"),
-      start: user.payForm === "Часовая" ? fd.get("start") : "",
-      end: user.payForm === "Часовая" ? fd.get("end") : "",
+      userId: String(fd.get("userId") || ""),
+      start: user.payForm === "Сдельная" ? "" : String(fd.get("start") || ""),
+      end: user.payForm === "Сдельная" ? "" : String(fd.get("end") || ""),
       pieceAmount: user.payForm === "Сдельная" ? Number(fd.get("pieceAmount") || 0) : 0,
     };
-    state.data.shifts.push(row);
+
+    state.data.shifts.push(shift);
     persist();
     render();
   };
@@ -346,12 +382,13 @@ function renderDayShifts() {
     .map((s) => {
       const u = state.data.users.find((x) => x.id === s.userId);
       if (!u) return "";
-      return `<tr data-id="${s.id}"><td>${u.lastName}</td><td>${u.payForm}</td><td>${s.start || "-"} ${s.end ? `- ${s.end}` : ""}</td><td><input type="number" min="0" value="${s.pieceAmount || ""}" ${u.payForm === "Часовая" ? "disabled" : ""} data-piece /></td><td><button class="btn btn-secondary save-shift">Сохранить</button> <button class="btn btn-secondary del-shift">Удалить</button></td></tr>`;
+      return `<tr data-id="${s.id}"><td>${u.lastName}</td><td>${u.payForm}</td><td>${s.start || "-"} ${s.end ? `- ${s.end}` : ""}</td><td><input type="number" min="0" value="${s.pieceAmount || ""}" ${u.payForm === "Сдельная" ? "" : "disabled"} data-piece /></td><td><button class="btn btn-secondary save-shift">Сохранить</button> <button class="btn btn-secondary del-shift">Удалить</button></td></tr>`;
     })
     .join("")}</tbody>`;
-  el.dayShiftsTable.querySelectorAll(".save-shift").forEach((b) => {
-    b.onclick = () => {
-      const tr = b.closest("tr");
+
+  el.dayShiftsTable.querySelectorAll(".save-shift").forEach((btn) => {
+    btn.onclick = () => {
+      const tr = btn.closest("tr");
       const s = state.data.shifts.find((x) => x.id === tr.dataset.id);
       if (!s) return;
       const piece = tr.querySelector("[data-piece]");
@@ -360,9 +397,10 @@ function renderDayShifts() {
       render();
     };
   });
-  el.dayShiftsTable.querySelectorAll(".del-shift").forEach((b) => {
-    b.onclick = () => {
-      const id = b.closest("tr").dataset.id;
+
+  el.dayShiftsTable.querySelectorAll(".del-shift").forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.closest("tr").dataset.id;
       state.data.shifts = state.data.shifts.filter((s) => s.id !== id);
       persist();
       render();
@@ -371,76 +409,122 @@ function renderDayShifts() {
 }
 
 function renderFinanceFilter() {
-  const deps = ["Все отделы", ...state.data.dictionaries.departments];
   if (!state.data.financeFilter) {
-    state.data.financeFilter = {
-      from: todayISO(),
-      to: todayISO(),
-      department: "Все отделы",
-    };
+    const month = monthISO(new Date());
+    state.data.financeFilter = { month, department: "Все отделы" };
   }
   const f = state.data.financeFilter;
+  const departments = ["Все отделы", ...state.data.dictionaries.departments];
+  const wd = state.data.workDaysByMonth[f.month] ?? "";
+
   el.financeFilter.innerHTML = `
-    <label>С <input name="from" type="date" value="${f.from}" /></label>
-    <label>По <input name="to" type="date" value="${f.to}" /></label>
-    <label>Отдел <select name="department">${deps
+    <label>Месяц <input name="month" type="month" value="${f.month}" /></label>
+    <label>Отдел <select name="department">${departments
       .map((d) => `<option ${d === f.department ? "selected" : ""}>${d}</option>`)
       .join("")}</select></label>
-    <button class="btn btn-primary" type="submit">Выгрузить</button>
+    <label>Рабочих дней в месяце <input name="workDays" type="number" min="1" max="31" value="${wd}" /></label>
+    <button class="btn btn-primary" type="submit">Применить</button>
   `;
+
   el.financeFilter.onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(el.financeFilter);
+    const month = String(fd.get("month") || monthISO(new Date()));
+    const workDays = Number(fd.get("workDays") || 0);
     state.data.financeFilter = {
-      from: fd.get("from"),
-      to: fd.get("to"),
-      department: fd.get("department"),
+      month,
+      department: String(fd.get("department") || "Все отделы"),
     };
+    if (workDays > 0) state.data.workDaysByMonth[month] = workDays;
     persist();
+    renderFinanceFilter();
     renderFinanceTable();
   };
 }
 
 function renderFinanceTable() {
   const f = state.data.financeFilter;
-  const users = state.data.users.filter((u) => u.role === "employee");
-  const from = new Date(f.from);
-  const to = new Date(f.to);
-  const rows = users
-    .filter((u) => f.department === "Все отделы" || u.department === f.department)
-    .map((u) => {
-      const own = state.data.shifts.filter((s) => {
-        if (s.userId !== u.id) return false;
-        const d = new Date(s.date);
-        return d >= from && d <= to;
-      });
-      const shiftCount = own.length;
-      const hours = own.reduce((acc, s) => acc + hoursBetween(s.start, s.end), 0);
-      const salary = own.reduce((acc, s) => acc + calculateShiftPay(s, u), 0);
-      const paid = state.data.payouts
-        .filter((p) => p.userId === u.id && p.from === f.from && p.to === f.to)
-        .reduce((acc, p) => acc + p.amount, 0);
-      const due = Math.max(0, salary - paid);
-      return { u, shiftCount, hours, salary, paid, due };
-    });
+  const [year, month] = f.month.split("-").map(Number);
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59);
 
-  el.financeTable.innerHTML = `<thead><tr><th>Фамилия</th><th>Должность</th><th>Отдел</th><th>Смен</th><th>Часы</th><th>Зарплата</th><th>Выплачено</th><th>Осталось</th><th>Выплатить</th></tr></thead><tbody>${rows
-    .map((r) => {
-      return `<tr><td>${r.u.lastName}</td><td>${r.u.position}</td><td>${r.u.department}</td><td>${r.shiftCount}</td><td>${r.hours}</td><td>${r.salary.toFixed(2)}</td><td>${r.paid.toFixed(2)}</td><td>${r.due.toFixed(2)}</td><td><button class="btn btn-secondary pay-btn" data-user-id="${r.u.id}" data-amount="${r.due}" ${r.due <= 0 ? "disabled" : ""}>Выплатить</button></td></tr>`;
+  const users = state.data.users
+    .filter((u) => u.role === "employee")
+    .filter((u) => f.department === "Все отделы" || u.department === f.department);
+
+  const rows = users.map((user) => {
+    const metrics = computeMonthlyMetrics(user, f.month, monthStart, monthEnd);
+    return { user, metrics };
+  });
+
+  el.financeTable.innerHTML = `<thead><tr>
+    <th>Фамилия</th><th>Должность</th><th>Отдел</th><th>Оформление</th><th>Форма оплаты</th><th>Смен</th><th>Часы</th>
+    <th>Начислено</th><th>НДФЛ</th><th>Премии/штрафы</th><th>К выплате</th><th>Выплачено</th><th>Остаток</th><th>Действия</th>
+  </tr></thead><tbody>${rows
+    .map(({ user, metrics }) => {
+      return `<tr>
+        <td>${user.lastName}</td>
+        <td>${user.position}</td>
+        <td>${user.department}</td>
+        <td>${user.employmentType || "Неофициально"}</td>
+        <td>${user.payForm}</td>
+        <td>${metrics.shiftCount}</td>
+        <td>${metrics.hours.toFixed(2)}</td>
+        <td>${metrics.gross.toFixed(2)}</td>
+        <td>${metrics.ndfl.toFixed(2)}</td>
+        <td>${metrics.adjustmentsNet.toFixed(2)}</td>
+        <td>${metrics.netDue.toFixed(2)}</td>
+        <td>${metrics.paid.toFixed(2)}</td>
+        <td>${metrics.remaining.toFixed(2)}</td>
+        <td>
+          <button class="btn btn-secondary payout-btn" data-user-id="${user.id}">Выплата</button>
+          <button class="btn btn-secondary adjust-btn" data-user-id="${user.id}">Премия/штраф</button>
+        </td>
+      </tr>`;
     })
     .join("")}</tbody>`;
 
-  el.financeTable.querySelectorAll(".pay-btn").forEach((b) => {
-    b.onclick = () => {
-      const amount = Number(b.dataset.amount || 0);
+  el.financeTable.querySelectorAll(".payout-btn").forEach((btn) => {
+    btn.onclick = () => {
+      const userId = btn.dataset.userId;
+      const user = state.data.users.find((u) => u.id === userId);
+      if (!user) return;
+      const type = prompt("Тип выплаты: advance / salary / custom", "custom");
+      if (!type) return;
+      const amount = Number(prompt("Сумма выплаты", "0") || 0);
       if (amount <= 0) return;
+      const date = prompt("Дата выплаты (YYYY-MM-DD)", todayISO()) || todayISO();
+      const note = prompt("Комментарий (необязательно)", "") || "";
       state.data.payouts.push({
         id: crypto.randomUUID(),
-        userId: b.dataset.userId,
+        userId,
+        month: f.month,
         amount,
-        from: f.from,
-        to: f.to,
-        paidAt: new Date().toISOString(),
+        type,
+        date,
+        note,
+      });
+      persist();
+      renderFinanceTable();
+    };
+  });
+
+  el.financeTable.querySelectorAll(".adjust-btn").forEach((btn) => {
+    btn.onclick = () => {
+      const userId = btn.dataset.userId;
+      const kind = prompt("Тип корректировки: bonus / fine", "bonus");
+      if (!kind) return;
+      const amount = Number(prompt("Сумма", "0") || 0);
+      if (amount <= 0) return;
+      const note = prompt("Комментарий", "") || "";
+      state.data.adjustments.push({
+        id: crypto.randomUUID(),
+        userId,
+        month: f.month,
+        kind,
+        amount,
+        note,
+        createdAt: new Date().toISOString(),
       });
       persist();
       renderFinanceTable();
@@ -448,14 +532,70 @@ function renderFinanceTable() {
   });
 }
 
+function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
+  const shifts = state.data.shifts
+    .filter((s) => s.userId === user.id)
+    .filter((s) => {
+      const d = new Date(s.date);
+      return d >= monthStart && d <= monthEnd;
+    });
+
+  const shiftCount = shifts.length;
+  const hours = shifts.reduce((acc, s) => acc + hoursBetween(s.start, s.end), 0);
+  const gross = shifts.reduce((acc, s) => acc + calculateShiftPay(s, user, month), 0);
+
+  const monthAdjustments = state.data.adjustments.filter(
+    (a) => a.userId === user.id && a.month === month
+  );
+  const bonuses = monthAdjustments
+    .filter((a) => a.kind === "bonus")
+    .reduce((acc, a) => acc + Number(a.amount || 0), 0);
+  const fines = monthAdjustments
+    .filter((a) => a.kind === "fine")
+    .reduce((acc, a) => acc + Number(a.amount || 0), 0);
+  const adjustmentsNet = bonuses - fines;
+
+  const ndfl = calculateNdfl(user, gross);
+  const netDue = Math.max(0, gross - ndfl + adjustmentsNet);
+
+  const paid = state.data.payouts
+    .filter((p) => p.userId === user.id && p.month === month)
+    .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+  const remaining = Math.max(0, netDue - paid);
+
+  return { shiftCount, hours, gross, ndfl, adjustmentsNet, netDue, paid, remaining };
+}
+
+function calculateNdfl(user, gross) {
+  const isOfficial = (user.employmentType || "Неофициально") === "Официально";
+  if (!isOfficial) return 0;
+  if (user.payForm === "Оклад") {
+    const base = Math.min(gross, Number(user.monthlySalary || 0));
+    return base * NDFL_RATE;
+  }
+  return gross * NDFL_RATE;
+}
+
+function calculateShiftPay(shift, user, month) {
+  if (user.payForm === "Сдельная") return Number(shift.pieceAmount || 0);
+  if (user.payForm === "Часовая") {
+    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0);
+  }
+  const workDays = Number(state.data.workDaysByMonth[month] || 0);
+  if (workDays <= 0) return 0;
+  const hourlyRate = Number(user.monthlySalary || 0) / workDays / SHIFT_HOURS_STANDARD;
+  return hoursBetween(shift.start, shift.end) * hourlyRate;
+}
+
 function renderMyCabinet() {
   const u = state.currentUser;
-  const nowMonth = state.employeeMonth;
-  const [year, month] = nowMonth.split("-").map(Number);
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59);
+  const month = state.employeeMonth;
+  const [year, monthNum] = month.split("-").map(Number);
+  const monthStart = new Date(year, monthNum - 1, 1);
+  const monthEnd = new Date(year, monthNum, 0, 23, 59, 59);
 
-  const myMonthShifts = state.data.shifts
+  const metrics = computeMonthlyMetrics(u, month, monthStart, monthEnd);
+  const shifts = state.data.shifts
     .filter((s) => s.userId === u.id)
     .filter((s) => {
       const d = new Date(s.date);
@@ -463,50 +603,41 @@ function renderMyCabinet() {
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const earned = myMonthShifts.reduce((acc, s) => acc + calculateShiftPay(s, u), 0);
-  const paid = state.data.payouts
-    .filter((p) => p.userId === u.id)
-    .filter((p) => {
-      const from = new Date(p.from);
-      const to = new Date(p.to);
-      return to >= monthStart && from <= monthEnd;
-    })
-    .reduce((acc, p) => acc + p.amount, 0);
-  const due = Math.max(0, earned - paid);
+  const hourlyRateForMonth =
+    u.payForm === "Оклад" && Number(state.data.workDaysByMonth[month] || 0) > 0
+      ? Number(u.monthlySalary || 0) /
+        Number(state.data.workDaysByMonth[month]) /
+        SHIFT_HOURS_STANDARD
+      : Number(u.hourlyRate || 0);
 
   el.myProfile.innerHTML = `
     <p><strong>${u.lastName} ${u.firstName} ${u.middleName}</strong></p>
     <p>Должность: ${u.position}</p>
     <p>Отдел: ${u.department}</p>
-    <p>Форма оплаты: ${u.payForm}${u.payForm === "Часовая" ? ` (${u.hourlyRate} ₽/ч)` : ""}</p>
+    <p>Оформление: ${u.employmentType || "Неофициально"}</p>
+    <p>Форма оплаты: ${u.payForm}${u.payForm === "Оклад" ? ` (${Number(u.monthlySalary || 0).toFixed(2)} ₽/мес)` : ""}${u.payForm === "Часовая" ? ` (${Number(u.hourlyRate || 0).toFixed(2)} ₽/ч)` : ""}</p>
+    <p>Расчетная ставка за час в месяце: <b>${hourlyRateForMonth.toFixed(2)} ₽/ч</b></p>
     <form id="month-selector" class="inline-form">
-      <label>Месяц <input type="month" name="month" value="${nowMonth}" /></label>
+      <label>Месяц <input type="month" name="month" value="${month}" /></label>
       <button class="btn btn-secondary" type="submit">Показать</button>
     </form>
-    <p><strong>За месяц:</strong> начислено <b>${earned.toFixed(2)} ₽</b>, выплачено <b>${paid.toFixed(2)} ₽</b>, осталось к выплате <b>${due.toFixed(2)} ₽</b>.</p>
+    <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
   `;
 
   const monthForm = document.getElementById("month-selector");
   monthForm.onsubmit = (e) => {
     e.preventDefault();
-    const chosen = new FormData(monthForm).get("month");
-    if (chosen) state.employeeMonth = chosen.toString();
+    const chosen = String(new FormData(monthForm).get("month") || "");
+    if (chosen) state.employeeMonth = chosen;
     renderMyCabinet();
   };
 
-  el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th></tr></thead><tbody>${myMonthShifts
+  el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th></tr></thead><tbody>${shifts
     .map((s) => {
-      const amount = calculateShiftPay(s, u);
+      const amount = calculateShiftPay(s, u, month);
       return `<tr><td>${s.date}</td><td>${u.payForm}</td><td>${s.start || "-"}${s.end ? ` - ${s.end}` : ""}</td><td>${amount.toFixed(2)} ₽</td></tr>`;
     })
     .join("")}</tbody>`;
-}
-
-function calculateShiftPay(shift, user) {
-  if (user.payForm === "Часовая") {
-    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0);
-  }
-  return Number(shift.pieceAmount || 0);
 }
 
 function makeSelect(name, options, selected, extra = "") {
@@ -520,7 +651,7 @@ function loadData() {
   const base = {
     dictionaries: {
       positions: ["грузчик", "кладовщик", "упаковщик", "водитель"],
-      payForms: ["Сдельная", "Часовая"],
+      payForms: ["Сдельная", "Часовая", "Оклад"],
       departments: ["Отдел упаковки", "Склад Самара", "Склад Тольятти", "Водители"],
     },
     users: [
@@ -531,8 +662,10 @@ function loadData() {
         firstName: "Иван",
         middleName: "Иванович",
         position: "управляющий",
-        payForm: "Часовая",
+        employmentType: "Официально",
+        payForm: "Оклад",
         hourlyRate: 0,
+        monthlySalary: 120000,
         department: "Офис",
         phone: "79990000000",
         password: "admin123",
@@ -544,8 +677,10 @@ function loadData() {
         firstName: "Павел",
         middleName: "Олегович",
         position: "грузчик",
-        payForm: "Часовая",
-        hourlyRate: 277,
+        employmentType: "Официально",
+        payForm: "Оклад",
+        hourlyRate: 0,
+        monthlySalary: 55000,
         department: "Склад Самара",
         phone: "79990000001",
         password: "user123",
@@ -553,13 +688,72 @@ function loadData() {
     ],
     shifts: [],
     payouts: [],
-    financeFilter: null,
+    adjustments: [],
+    workDaysByMonth: {
+      [monthISO(new Date())]: 20,
+    },
+    financeFilter: {
+      month: monthISO(new Date()),
+      department: "Все отделы",
+    },
   };
 
   if (!raw) return base;
   const data = JSON.parse(raw);
-  data.payouts = Array.isArray(data.payouts) ? data.payouts : [];
+
+  data.dictionaries = data.dictionaries || base.dictionaries;
+  if (!data.dictionaries.payForms?.includes("Оклад")) data.dictionaries.payForms.push("Оклад");
+
+  data.users = Array.isArray(data.users) ? data.users : base.users;
+  data.users.forEach((u) => {
+    if (!u.employmentType) u.employmentType = "Неофициально";
+    if (!u.payForm) u.payForm = "Часовая";
+    if (u.monthlySalary == null) u.monthlySalary = 0;
+    if (u.hourlyRate == null) u.hourlyRate = 0;
+  });
+
+  data.shifts = Array.isArray(data.shifts) ? data.shifts : [];
+  data.payouts = normalizePayouts(data.payouts);
+  data.adjustments = Array.isArray(data.adjustments) ? data.adjustments : [];
+  data.workDaysByMonth = data.workDaysByMonth || {};
+
+  if (!data.financeFilter?.month) {
+    data.financeFilter = { month: monthISO(new Date()), department: "Все отделы" };
+  }
+
   return data;
+}
+
+function normalizePayouts(rawPayouts) {
+  if (!Array.isArray(rawPayouts)) return [];
+  return rawPayouts.map((p) => {
+    if (typeof p === "string") {
+      return {
+        id: crypto.randomUUID(),
+        userId: p.split("_")[0],
+        month: monthISO(new Date()),
+        amount: 0,
+        type: "custom",
+        date: todayISO(),
+        note: "legacy",
+      };
+    }
+    return {
+      id: p.id || crypto.randomUUID(),
+      userId: p.userId,
+      month: p.month || monthFromDates(p.from, p.to) || monthISO(new Date()),
+      amount: Number(p.amount || 0),
+      type: p.type || "custom",
+      date: p.date || (p.paidAt ? String(p.paidAt).slice(0, 10) : todayISO()),
+      note: p.note || "",
+    };
+  });
+}
+
+function monthFromDates(from, to) {
+  if (typeof from === "string" && from.length >= 7) return from.slice(0, 7);
+  if (typeof to === "string" && to.length >= 7) return to.slice(0, 7);
+  return "";
 }
 
 function persist() {
