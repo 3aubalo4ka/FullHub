@@ -22,6 +22,7 @@ const el = {
   appShell: document.getElementById("app-shell"),
   loginForm: document.getElementById("login-form"),
   loginError: document.getElementById("login-error"),
+  resetDataBtn: document.getElementById("reset-data-btn"),
   phone: document.getElementById("login-phone"),
   pass: document.getElementById("login-password"),
   userBadge: document.getElementById("user-badge"),
@@ -82,6 +83,11 @@ function wireAuth() {
     state.currentUser = null;
     el.pass.value = "";
     render();
+  };
+
+  el.resetDataBtn.onclick = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
   };
 }
 
