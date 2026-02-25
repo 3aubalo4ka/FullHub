@@ -378,11 +378,12 @@ function renderShiftForm() {
 
 function renderDayShifts() {
   const rows = state.data.shifts.filter((s) => s.date === state.selectedDate);
-  el.dayShiftsTable.innerHTML = `<thead><tr><th>Сотрудник</th><th>Тип</th><th>Время</th><th>Сделка</th><th>Действия</th></tr></thead><tbody>${rows
+  el.dayShiftsTable.innerHTML = `<thead><tr><th>Сотрудник</th><th>Тип</th><th>Начало</th><th>Конец</th><th>Сделка</th><th>Действия</th></tr></thead><tbody>${rows
     .map((s) => {
       const u = state.data.users.find((x) => x.id === s.userId);
       if (!u) return "";
-      return `<tr data-id="${s.id}"><td>${u.lastName}</td><td>${u.payForm}</td><td>${s.start || "-"} ${s.end ? `- ${s.end}` : ""}</td><td><input type="number" min="0" value="${s.pieceAmount || ""}" ${u.payForm === "Сдельная" ? "" : "disabled"} data-piece /></td><td><button class="btn btn-secondary save-shift">Сохранить</button> <button class="btn btn-secondary del-shift">Удалить</button></td></tr>`;
+      const isPiece = u.payForm === "Сдельная";
+      return `<tr data-id="${s.id}"><td>${u.lastName}</td><td>${u.payForm}</td><td><input type="time" value="${s.start || "09:00"}" ${isPiece ? "disabled" : ""} data-start /></td><td><input type="time" value="${s.end || "18:00"}" ${isPiece ? "disabled" : ""} data-end /></td><td><input type="number" min="0" value="${s.pieceAmount || ""}" ${isPiece ? "" : "disabled"} data-piece /></td><td><button class="btn btn-secondary save-shift">Сохранить</button> <button class="btn btn-secondary del-shift">Удалить</button></td></tr>`;
     })
     .join("")}</tbody>`;
 
@@ -391,7 +392,11 @@ function renderDayShifts() {
       const tr = btn.closest("tr");
       const s = state.data.shifts.find((x) => x.id === tr.dataset.id);
       if (!s) return;
+      const start = tr.querySelector("[data-start]");
+      const end = tr.querySelector("[data-end]");
       const piece = tr.querySelector("[data-piece]");
+      if (start && !start.disabled) s.start = String(start.value || "09:00");
+      if (end && !end.disabled) s.end = String(end.value || "18:00");
       if (piece && !piece.disabled) s.pieceAmount = Number(piece.value || 0);
       persist();
       render();
