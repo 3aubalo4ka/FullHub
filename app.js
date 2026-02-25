@@ -15,6 +15,7 @@ const state = {
   selectedDate: todayISO(),
   viewMonth: new Date(),
   employeeMonth: monthISO(new Date()),
+  financeHistoryUserId: null,
 };
 
 const el = {
@@ -39,8 +40,11 @@ const el = {
   dayShiftsTable: document.getElementById("day-shifts-table"),
   financeFilter: document.getElementById("finance-filter"),
   financeTable: document.getElementById("finance-table"),
+  financeHistoryTitle: document.getElementById("finance-history-title"),
+  financeHistoryTable: document.getElementById("finance-history-table"),
   myProfile: document.getElementById("employee-profile"),
   myShifts: document.getElementById("my-shifts-table"),
+  myMoneyHistory: document.getElementById("my-money-history-table"),
   tabs: [...document.querySelectorAll(".tab")],
   tabPanels: {
     employees: document.getElementById("tab-employees"),
@@ -121,6 +125,7 @@ function render() {
     renderDayShifts();
     renderFinanceFilter();
     renderFinanceTable();
+    renderFinanceHistory();
   } else {
     el.adminView.classList.add("hidden");
     el.employeeView.classList.remove("hidden");
@@ -450,6 +455,7 @@ function renderFinanceFilter() {
     persist();
     renderFinanceFilter();
     renderFinanceTable();
+    renderFinanceHistory();
   };
 }
 
@@ -491,6 +497,7 @@ function renderFinanceTable() {
         <td>
           <button class="btn btn-secondary payout-btn" data-user-id="${user.id}">Выплата</button>
           <button class="btn btn-secondary adjust-btn" data-user-id="${user.id}">Премия/штраф</button>
+          <button class="btn btn-secondary history-btn" data-user-id="${user.id}">История</button>
         </td>
       </tr>`;
     })
@@ -525,10 +532,11 @@ function renderFinanceTable() {
     btn.onclick = () => {
       const userId = btn.dataset.userId;
       const kind = prompt("Тип корректировки: bonus / fine", "bonus");
-      if (!kind) return;
+      if (!kind || !["bonus", "fine"].includes(kind)) return;
       const amount = Number(prompt("Сумма", "0") || 0);
       if (amount <= 0) return;
-      const note = prompt("Комментарий", "") || "";
+      const note = (prompt("Комментарий (обязательно, за что)", "") || "").trim();
+      if (!note) return;
       state.data.adjustments.push({
         id: crypto.randomUUID(),
         userId,
@@ -540,8 +548,21 @@ function renderFinanceTable() {
       });
       persist();
       renderFinanceTable();
+      renderFinanceHistory();
     };
   });
+
+  el.financeTable.querySelectorAll(".history-btn").forEach((btn) => {
+    btn.onclick = () => {
+      state.financeHistoryUserId = btn.dataset.userId;
+      renderFinanceHistory();
+    };
+  });
+
+  if (!state.financeHistoryUserId && users[0]) {
+    state.financeHistoryUserId = users[0].id;
+  }
+  renderFinanceHistory();
 }
 
 function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
@@ -626,7 +647,6 @@ function renderMyCabinet() {
     <p><strong>${u.lastName} ${u.firstName} ${u.middleName}</strong></p>
     <p>Должность: ${u.position}</p>
     <p>Отдел: ${u.department}</p>
-    <p>Оформление: ${u.employmentType || "Неофициально"}</p>
     <p>Форма оплаты: ${u.payForm}${u.payForm === "Оклад" ? ` (${Number(u.monthlySalary || 0).toFixed(2)} ₽/мес)` : ""}${u.payForm === "Часовая" ? ` (${Number(u.hourlyRate || 0).toFixed(2)} ₽/ч)` : ""}</p>
     <p>Расчетная ставка за час в месяце: <b>${hourlyRateForMonth.toFixed(2)} ₽/ч</b></p>
     <form id="month-selector" class="inline-form">
@@ -650,6 +670,74 @@ function renderMyCabinet() {
       return `<tr><td>${s.date}</td><td>${u.payForm}</td><td>${s.start || "-"}${s.end ? ` - ${s.end}` : ""}</td><td>${amount.toFixed(2)} ₽</td></tr>`;
     })
     .join("")}</tbody>`;
+
+  const moneyHistory = buildMoneyHistoryEntries(u, month, monthStart, monthEnd);
+  el.myMoneyHistory.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>${moneyHistory
+    .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
+    .join("")}</tbody>`;
+}
+
+function renderFinanceHistory() {
+  const f = state.data.financeFilter;
+  const [year, month] = f.month.split("-").map(Number);
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59);
+  const user = state.data.users.find((u) => u.id === state.financeHistoryUserId && u.role === "employee");
+
+  if (!user) {
+    el.financeHistoryTitle.textContent = "История начислений и списаний";
+    el.financeHistoryTable.innerHTML = "<tbody><tr><td>Выберите сотрудника в таблице финансов (кнопка «История»).</td></tr></tbody>";
+    return;
+  }
+
+  el.financeHistoryTitle.textContent = `История: ${user.lastName} ${user.firstName} (${f.month})`;
+  const rows = buildMoneyHistoryEntries(user, f.month, monthStart, monthEnd);
+  el.financeHistoryTable.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>${rows
+    .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
+    .join("")}</tbody>`;
+}
+
+function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
+  const shiftRows = state.data.shifts
+    .filter((s) => s.userId === user.id)
+    .filter((s) => {
+      const d = new Date(s.date);
+      return d >= monthStart && d <= monthEnd;
+    })
+    .map((s) => ({
+      date: s.date,
+      type: "Начисление за смену",
+      amount: calculateShiftPay(s, user, month),
+      note: user.payForm === "Сдельная" ? "Сдельная смена" : `${s.start || "-"} - ${s.end || "-"}`,
+    }));
+
+  const metrics = computeMonthlyMetrics(user, month, monthStart, monthEnd);
+  const ndflRow = metrics.ndfl > 0 ? [{
+    date: `${month}-28`,
+    type: "Удержание НДФЛ",
+    amount: -metrics.ndfl,
+    note: "13% для официального трудоустройства",
+  }] : [];
+
+  const adjustmentRows = state.data.adjustments
+    .filter((a) => a.userId === user.id && a.month === month)
+    .map((a) => ({
+      date: (a.createdAt || "").slice(0, 10) || `${month}-01`,
+      type: a.kind === "bonus" ? "Премия" : "Штраф",
+      amount: a.kind === "bonus" ? Number(a.amount || 0) : -Number(a.amount || 0),
+      note: a.note || "",
+    }));
+
+  const payoutRows = state.data.payouts
+    .filter((p) => p.userId === user.id && p.month === month)
+    .map((p) => ({
+      date: p.date || `${month}-01`,
+      type: p.type === "advance" ? "Выплата аванс" : p.type === "salary" ? "Выплата зарплата" : "Выплата вне графика",
+      amount: -Number(p.amount || 0),
+      note: p.note || "",
+    }));
+
+  return [...shiftRows, ...ndflRow, ...adjustmentRows, ...payoutRows].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function makeSelect(name, options, selected, extra = "") {
