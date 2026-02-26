@@ -16,6 +16,7 @@ const state = {
   viewMonth: new Date(),
   employeeMonth: monthISO(new Date()),
   financeHistoryUserId: null,
+  financeActionUserId: null,
 };
 
 const el = {
@@ -40,6 +41,7 @@ const el = {
   dayShiftsTable: document.getElementById("day-shifts-table"),
   financeFilter: document.getElementById("finance-filter"),
   financeTable: document.getElementById("finance-table"),
+  financeActionsForm: document.getElementById("finance-actions-form"),
   financeHistoryTitle: document.getElementById("finance-history-title"),
   financeHistoryTable: document.getElementById("finance-history-table"),
   myProfile: document.getElementById("employee-profile"),
@@ -427,16 +429,25 @@ function renderDayShifts() {
 function renderFinanceFilter() {
   if (!state.data.financeFilter) {
     const month = monthISO(new Date());
-    state.data.financeFilter = { month, department: "Все отделы" };
+    state.data.financeFilter = { month, department: "Все отделы", employeeId: "all" };
   }
   const f = state.data.financeFilter;
   const departments = ["Все отделы", ...state.data.dictionaries.departments];
   const wd = state.data.workDaysByMonth[f.month] ?? "";
+  const employeeOptions = [
+    { id: "all", label: "Все сотрудники" },
+    ...state.data.users
+      .filter((u) => u.role === "employee")
+      .map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName}` })),
+  ];
 
   el.financeFilter.innerHTML = `
     <label>Месяц <input name="month" type="month" value="${f.month}" /></label>
     <label>Отдел <select name="department">${departments
       .map((d) => `<option ${d === f.department ? "selected" : ""}>${d}</option>`)
+      .join("")}</select></label>
+    <label>Сотрудник <select name="employeeId">${employeeOptions
+      .map((o) => `<option value="${o.id}" ${o.id === (f.employeeId || "all") ? "selected" : ""}>${o.label}</option>`)
       .join("")}</select></label>
     <label>Рабочих дней в месяце <input name="workDays" type="number" min="1" max="31" value="${wd}" /></label>
     <button class="btn btn-primary" type="submit">Применить</button>
@@ -450,6 +461,7 @@ function renderFinanceFilter() {
     state.data.financeFilter = {
       month,
       department: String(fd.get("department") || "Все отделы"),
+      employeeId: String(fd.get("employeeId") || "all"),
     };
     if (workDays > 0) state.data.workDaysByMonth[month] = workDays;
     persist();
@@ -467,7 +479,8 @@ function renderFinanceTable() {
 
   const users = state.data.users
     .filter((u) => u.role === "employee")
-    .filter((u) => f.department === "Все отделы" || u.department === f.department);
+    .filter((u) => f.department === "Все отделы" || u.department === f.department)
+    .filter((u) => (f.employeeId || "all") === "all" || u.id === f.employeeId);
 
   const rows = users.map((user) => {
     const metrics = computeMonthlyMetrics(user, f.month, monthStart, monthEnd);
@@ -496,7 +509,8 @@ function renderFinanceTable() {
         <td>${metrics.remaining.toFixed(2)}</td>
         <td>
           <button class="btn btn-secondary payout-btn" data-user-id="${user.id}">Выплата</button>
-          <button class="btn btn-secondary adjust-btn" data-user-id="${user.id}">Премия/штраф</button>
+          <button class="btn btn-secondary bonus-btn" data-user-id="${user.id}">Премия</button>
+          <button class="btn btn-secondary fine-btn" data-user-id="${user.id}">Штраф</button>
           <button class="btn btn-secondary history-btn" data-user-id="${user.id}">История</button>
         </td>
       </tr>`;
@@ -505,50 +519,22 @@ function renderFinanceTable() {
 
   el.financeTable.querySelectorAll(".payout-btn").forEach((btn) => {
     btn.onclick = () => {
-      const userId = btn.dataset.userId;
-      const user = state.data.users.find((u) => u.id === userId);
-      if (!user) return;
-      const type = prompt("Тип выплаты: advance / salary / custom", "custom");
-      if (!type) return;
-      const amount = Number(prompt("Сумма выплаты", "0") || 0);
-      if (amount <= 0) return;
-      const date = prompt("Дата выплаты (YYYY-MM-DD)", todayISO()) || todayISO();
-      const note = prompt("Комментарий (необязательно)", "") || "";
-      state.data.payouts.push({
-        id: crypto.randomUUID(),
-        userId,
-        month: f.month,
-        amount,
-        type,
-        date,
-        note,
-      });
-      persist();
-      renderFinanceTable();
+      state.financeActionUserId = btn.dataset.userId;
+      renderFinanceActions("payout");
     };
   });
 
-  el.financeTable.querySelectorAll(".adjust-btn").forEach((btn) => {
+  el.financeTable.querySelectorAll(".bonus-btn").forEach((btn) => {
     btn.onclick = () => {
-      const userId = btn.dataset.userId;
-      const kind = prompt("Тип корректировки: bonus / fine", "bonus");
-      if (!kind || !["bonus", "fine"].includes(kind)) return;
-      const amount = Number(prompt("Сумма", "0") || 0);
-      if (amount <= 0) return;
-      const note = (prompt("Комментарий (обязательно, за что)", "") || "").trim();
-      if (!note) return;
-      state.data.adjustments.push({
-        id: crypto.randomUUID(),
-        userId,
-        month: f.month,
-        kind,
-        amount,
-        note,
-        createdAt: new Date().toISOString(),
-      });
-      persist();
-      renderFinanceTable();
-      renderFinanceHistory();
+      state.financeActionUserId = btn.dataset.userId;
+      renderFinanceActions("bonus");
+    };
+  });
+
+  el.financeTable.querySelectorAll(".fine-btn").forEach((btn) => {
+    btn.onclick = () => {
+      state.financeActionUserId = btn.dataset.userId;
+      renderFinanceActions("fine");
     };
   });
 
@@ -562,7 +548,102 @@ function renderFinanceTable() {
   if (!state.financeHistoryUserId && users[0]) {
     state.financeHistoryUserId = users[0].id;
   }
+  renderFinanceActions();
   renderFinanceHistory();
+}
+
+function renderFinanceActions(defaultAction = "payout") {
+  const f = state.data.financeFilter;
+  const users = state.data.users
+    .filter((u) => u.role === "employee")
+    .filter((u) => f.department === "Все отделы" || u.department === f.department);
+  if (!users.length) {
+    el.financeActionsForm.innerHTML = "<p>Нет сотрудников для выбранного фильтра.</p>";
+    return;
+  }
+
+  if (!state.financeActionUserId || !users.find((u) => u.id === state.financeActionUserId)) {
+    state.financeActionUserId = users[0].id;
+  }
+
+  el.financeActionsForm.innerHTML = `
+    <label>Сотрудник
+      <select name="userId">${users
+        .map((u) => `<option value="${u.id}" ${u.id === state.financeActionUserId ? "selected" : ""}>${u.lastName} ${u.firstName}</option>`)
+        .join("")}</select>
+    </label>
+    <label>Дата
+      <input type="date" name="date" value="${todayISO()}" />
+    </label>
+    <label>Сумма
+      <input type="number" min="0" step="0.01" name="amount" placeholder="Введите сумму" />
+    </label>
+    <label>Тип выплаты
+      <select name="payoutType">
+        <option value="advance">advance</option>
+        <option value="salary">salary</option>
+        <option value="custom" selected>custom</option>
+      </select>
+    </label>
+    <label>Комментарий
+      <input name="note" placeholder="Обязателен для премии/штрафа" />
+    </label>
+    <div class="action-buttons-row">
+      <button class="btn btn-primary" type="button" data-action="payout">Выплата</button>
+      <button class="btn btn-secondary" type="button" data-action="bonus">Премия</button>
+      <button class="btn btn-secondary" type="button" data-action="fine">Штраф</button>
+    </div>
+  `;
+
+  const userSelect = el.financeActionsForm.querySelector('select[name="userId"]');
+  userSelect.value = state.financeActionUserId;
+  userSelect.onchange = () => {
+    state.financeActionUserId = userSelect.value;
+  };
+
+  const actionButtons = el.financeActionsForm.querySelectorAll("[data-action]");
+  actionButtons.forEach((btn) => {
+    if (btn.dataset.action === defaultAction) btn.classList.add("tab", "active");
+    btn.onclick = () => {
+      const fd = new FormData(el.financeActionsForm);
+      const userId = String(fd.get("userId") || "");
+      const amount = Number(fd.get("amount") || 0);
+      const date = String(fd.get("date") || todayISO());
+      const note = String(fd.get("note") || "").trim();
+      const action = btn.dataset.action;
+      if (!userId || amount <= 0) return;
+
+      if (action === "payout") {
+        const payoutType = String(fd.get("payoutType") || "custom");
+        state.data.payouts.push({
+          id: crypto.randomUUID(),
+          userId,
+          month: f.month,
+          amount,
+          type: payoutType,
+          date,
+          note,
+        });
+      } else {
+        if (!note) return;
+        state.data.adjustments.push({
+          id: crypto.randomUUID(),
+          userId,
+          month: f.month,
+          kind: action === "bonus" ? "bonus" : "fine",
+          amount,
+          note,
+          createdAt: `${date}T12:00:00.000Z`,
+        });
+      }
+
+      state.financeActionUserId = userId;
+      persist();
+      renderFinanceTable();
+      renderFinanceHistory();
+      renderFinanceActions(action);
+    };
+  });
 }
 
 function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
@@ -653,6 +734,7 @@ function renderMyCabinet() {
       <label>Месяц <input type="month" name="month" value="${month}" /></label>
       <button class="btn btn-secondary" type="submit">Показать</button>
     </form>
+    <p><strong>Статистика:</strong> смен отработано <b>${metrics.shiftCount}</b>, часов отработано <b>${metrics.hours.toFixed(2)}</b>.</p>
     <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
   `;
 
@@ -664,10 +746,10 @@ function renderMyCabinet() {
     renderMyCabinet();
   };
 
-  el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th></tr></thead><tbody>${shifts
+  el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th><th>График</th></tr></thead><tbody>${shifts
     .map((s) => {
       const amount = calculateShiftPay(s, u, month);
-      return `<tr><td>${s.date}</td><td>${u.payForm}</td><td>${s.start || "-"}${s.end ? ` - ${s.end}` : ""}</td><td>${amount.toFixed(2)} ₽</td></tr>`;
+      return `<tr><td>${s.date}</td><td>${u.payForm}</td><td>${s.start || "-"}${s.end ? ` - ${s.end}` : ""}</td><td>${amount.toFixed(2)} ₽</td><td>${s.start && s.end ? `${s.start}–${s.end}` : "сдельная"}</td></tr>`;
     })
     .join("")}</tbody>`;
 
@@ -795,6 +877,7 @@ function loadData() {
     financeFilter: {
       month: monthISO(new Date()),
       department: "Все отделы",
+      employeeId: "all",
     },
   };
 
@@ -818,7 +901,7 @@ function loadData() {
   data.workDaysByMonth = data.workDaysByMonth || {};
 
   if (!data.financeFilter?.month) {
-    data.financeFilter = { month: monthISO(new Date()), department: "Все отделы" };
+    data.financeFilter = { month: monthISO(new Date()), department: "Все отделы", employeeId: "all" };
   }
 
   return data;
