@@ -114,6 +114,17 @@ select:focus {
   min-height: 1em;
 }
 
+.version-pill {
+  display: inline-block;
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.78rem;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
 .app {
   width: min(1320px, calc(100vw - 2rem));
   margin-inline: auto;

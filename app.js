@@ -1,4 +1,5 @@
-const STORAGE_KEY = "fullhub-data-v3";
+const APP_VERSION = "2026.02.27-v4";
+const STORAGE_KEY = "fullhub-data-v4";
 const SHIFT_HOURS_STANDARD = 9;
 const NDFL_RATE = 0.13;
 
@@ -25,6 +26,7 @@ const el = {
   loginForm: document.getElementById("login-form"),
   loginError: document.getElementById("login-error"),
   resetDataBtn: document.getElementById("reset-data-btn"),
+  appVersionPill: document.getElementById("app-version-pill"),
   phone: document.getElementById("login-phone"),
   pass: document.getElementById("login-password"),
   userBadge: document.getElementById("user-badge"),
@@ -58,6 +60,8 @@ const el = {
 init();
 
 function init() {
+  clearLegacyStorageKeys();
+  if (el.appVersionPill) el.appVersionPill.textContent = `Версия: ${APP_VERSION}`;
   wireAuth();
   wireTabs();
   document.getElementById("prev-month").onclick = () => {
@@ -92,7 +96,7 @@ function wireAuth() {
   };
 
   el.resetDataBtn.onclick = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    clearLegacyStorageKeys(true);
     window.location.reload();
   };
 }
@@ -1056,6 +1060,15 @@ function formatDateRU(iso) {
   const [y, m, d] = iso.split("-");
   const names = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
   return `${Number(d)} ${names[Number(m) - 1]} ${y}`;
+}
+
+function clearLegacyStorageKeys(force = false) {
+  const keys = Object.keys(localStorage).filter((k) => k.startsWith("fullhub-data-v"));
+  if (!keys.length) return;
+  if (!force && keys.length === 1 && keys[0] === STORAGE_KEY) return;
+  keys.forEach((k) => {
+    if (force || k !== STORAGE_KEY) localStorage.removeItem(k);
+  });
 }
 
 function persist() {
