@@ -761,6 +761,15 @@ function renderMyCabinet() {
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  const allFutureShifts = state.data.shifts
+    .filter((s) => s.userId === u.id)
+    .filter((s) => new Date(s.date) >= new Date(new Date().toDateString()))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const todayShift = allFutureShifts.find((s) => s.date === todayISO());
+  const nextShift = allFutureShifts.find((s) => s.date > todayISO()) || null;
+  const nextPayout = getNextPlannedPayoutDate();
+
   const hourlyRateForMonth =
     u.payForm === "Оклад" && Number(state.data.workDaysByMonth[month] || 0) > 0
       ? Number(u.monthlySalary || 0) /
@@ -778,7 +787,19 @@ function renderMyCabinet() {
       <label>Месяц <select name="month">${buildMonthOptions(18).map((m) => `<option value="${m.value}" ${m.value === month ? "selected" : ""}>${m.label}</option>`).join("")}</select></label>
       <button class="btn btn-secondary" type="submit">Показать</button>
     </form>
-    <p><strong>Статистика:</strong> смен отработано <b>${metrics.shiftCount}</b>, часов отработано <b>${metrics.hours.toFixed(2)}</b>.</p>
+
+    <div class="employee-kpi-grid">
+      <div class="kpi-card"><span>Смен за месяц</span><strong>${metrics.shiftCount}</strong></div>
+      <div class="kpi-card"><span>Часов за месяц</span><strong>${metrics.hours.toFixed(2)}</strong></div>
+      <div class="kpi-card"><span>К выплате</span><strong>${metrics.remaining.toFixed(2)} ₽</strong></div>
+      <div class="kpi-card"><span>Ближайшая плановая выплата</span><strong>${nextPayout}</strong></div>
+    </div>
+
+    <div class="employee-kpi-grid">
+      <div class="kpi-card"><span>Сегодняшняя смена</span><strong>${todayShift ? `${todayShift.start || "сделка"}${todayShift.end ? `–${todayShift.end}` : ""}` : "Нет смены"}</strong></div>
+      <div class="kpi-card"><span>Следующая смена</span><strong>${nextShift ? `${formatDateRU(nextShift.date)} • ${nextShift.start || "сделка"}${nextShift.end ? `–${nextShift.end}` : ""}` : "Не назначена"}</strong></div>
+    </div>
+
     <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
   `;
 
@@ -1014,6 +1035,21 @@ function buildMonthOptions(count = 12) {
     opts.push({ value, label: `${names[d.getMonth()]} ${d.getFullYear()}` });
   }
   return opts;
+}
+
+function getNextPlannedPayoutDate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  const d10 = new Date(y, m, 10);
+  const d25 = new Date(y, m, 25);
+  let next = d10;
+  if (now <= d10) next = d10;
+  else if (now <= d25) next = d25;
+  else next = new Date(y, m + 1, 10);
+
+  return formatDateRU(dateISO(next));
 }
 
 function formatDateRU(iso) {
