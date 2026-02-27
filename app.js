@@ -1,4 +1,4 @@
-const STORAGE_KEY = "fullhub-data-v2";
+const STORAGE_KEY = "fullhub-data-v3";
 const SHIFT_HOURS_STANDARD = 9;
 const NDFL_RATE = 0.13;
 
