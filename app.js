@@ -429,8 +429,16 @@ function renderDayShifts() {
 function renderFinanceFilter() {
   if (!state.data.financeFilter) {
     const month = monthISO(new Date());
-    state.data.financeFilter = { month, department: "Все отделы", employeeId: "all" };
+    const bounds = monthBounds(month);
+    state.data.financeFilter = {
+      month,
+      from: bounds.from,
+      to: bounds.to,
+      department: "Все отделы",
+      employeeId: "all",
+    };
   }
+
   const f = state.data.financeFilter;
   const departments = ["Все отделы", ...state.data.dictionaries.departments];
   const wd = state.data.workDaysByMonth[f.month] ?? "";
@@ -441,8 +449,14 @@ function renderFinanceFilter() {
       .map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName}` })),
   ];
 
+  const monthOptions = buildMonthOptions(18)
+    .map((m) => `<option value="${m.value}" ${m.value === f.month ? "selected" : ""}>${m.label}</option>`)
+    .join("");
+
   el.financeFilter.innerHTML = `
-    <label>Месяц <input name="month" type="month" value="${f.month}" /></label>
+    <label>Месяц <select name="month">${monthOptions}</select></label>
+    <label>Период с <input name="from" type="date" value="${f.from || ""}" /></label>
+    <label>Период по <input name="to" type="date" value="${f.to || ""}" /></label>
     <label>Отдел <select name="department">${departments
       .map((d) => `<option ${d === f.department ? "selected" : ""}>${d}</option>`)
       .join("")}</select></label>
@@ -453,13 +467,28 @@ function renderFinanceFilter() {
     <button class="btn btn-primary" type="submit">Применить</button>
   `;
 
+  const monthSelect = el.financeFilter.querySelector('select[name="month"]');
+  const fromInput = el.financeFilter.querySelector('input[name="from"]');
+  const toInput = el.financeFilter.querySelector('input[name="to"]');
+  monthSelect.onchange = () => {
+    const bounds = monthBounds(monthSelect.value);
+    fromInput.value = bounds.from;
+    toInput.value = bounds.to;
+  };
+
   el.financeFilter.onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(el.financeFilter);
     const month = String(fd.get("month") || monthISO(new Date()));
+    const bounds = monthBounds(month);
     const workDays = Number(fd.get("workDays") || 0);
+    const from = String(fd.get("from") || bounds.from);
+    const to = String(fd.get("to") || bounds.to);
+
     state.data.financeFilter = {
       month,
+      from,
+      to,
       department: String(fd.get("department") || "Все отделы"),
       employeeId: String(fd.get("employeeId") || "all"),
     };
@@ -473,9 +502,9 @@ function renderFinanceFilter() {
 
 function renderFinanceTable() {
   const f = state.data.financeFilter;
-  const [year, month] = f.month.split("-").map(Number);
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59);
+  const period = getFinancePeriod();
+  const monthStart = period.start;
+  const monthEnd = period.end;
 
   const users = state.data.users
     .filter((u) => u.role === "employee")
@@ -556,7 +585,9 @@ function renderFinanceActions(defaultAction = "payout") {
   const f = state.data.financeFilter;
   const users = state.data.users
     .filter((u) => u.role === "employee")
-    .filter((u) => f.department === "Все отделы" || u.department === f.department);
+    .filter((u) => f.department === "Все отделы" || u.department === f.department)
+    .filter((u) => (f.employeeId || "all") === "all" || u.id === f.employeeId);
+
   if (!users.length) {
     el.financeActionsForm.innerHTML = "<p>Нет сотрудников для выбранного фильтра.</p>";
     return;
@@ -580,18 +611,19 @@ function renderFinanceActions(defaultAction = "payout") {
     </label>
     <label>Тип выплаты
       <select name="payoutType">
-        <option value="advance">advance</option>
-        <option value="salary">salary</option>
-        <option value="custom" selected>custom</option>
+        <option value="Аванс">Аванс</option>
+        <option value="Зарплата">Зарплата</option>
+        <option value="Вне графика" selected>Вне графика</option>
       </select>
     </label>
     <label>Комментарий
       <input name="note" placeholder="Обязателен для премии/штрафа" />
     </label>
     <div class="action-buttons-row">
-      <button class="btn btn-primary" type="button" data-action="payout">Выплата</button>
-      <button class="btn btn-secondary" type="button" data-action="bonus">Премия</button>
-      <button class="btn btn-secondary" type="button" data-action="fine">Штраф</button>
+      <button class="btn btn-primary" type="button" data-action-select="payout">Выплата</button>
+      <button class="btn btn-secondary" type="button" data-action-select="bonus">Премия</button>
+      <button class="btn btn-secondary" type="button" data-action-select="fine">Штраф</button>
+      <button class="btn btn-primary" type="button" data-action-submit>Выполнить</button>
     </div>
   `;
 
@@ -601,49 +633,61 @@ function renderFinanceActions(defaultAction = "payout") {
     state.financeActionUserId = userSelect.value;
   };
 
-  const actionButtons = el.financeActionsForm.querySelectorAll("[data-action]");
-  actionButtons.forEach((btn) => {
-    if (btn.dataset.action === defaultAction) btn.classList.add("tab", "active");
+  let selectedAction = defaultAction;
+  const selectButtons = [...el.financeActionsForm.querySelectorAll("[data-action-select]")];
+  const highlight = () => {
+    selectButtons.forEach((b) => {
+      b.classList.remove("tab", "active");
+      if (b.dataset.actionSelect === selectedAction) b.classList.add("tab", "active");
+    });
+  };
+  highlight();
+
+  selectButtons.forEach((btn) => {
     btn.onclick = () => {
-      const fd = new FormData(el.financeActionsForm);
-      const userId = String(fd.get("userId") || "");
-      const amount = Number(fd.get("amount") || 0);
-      const date = String(fd.get("date") || todayISO());
-      const note = String(fd.get("note") || "").trim();
-      const action = btn.dataset.action;
-      if (!userId || amount <= 0) return;
-
-      if (action === "payout") {
-        const payoutType = String(fd.get("payoutType") || "custom");
-        state.data.payouts.push({
-          id: crypto.randomUUID(),
-          userId,
-          month: f.month,
-          amount,
-          type: payoutType,
-          date,
-          note,
-        });
-      } else {
-        if (!note) return;
-        state.data.adjustments.push({
-          id: crypto.randomUUID(),
-          userId,
-          month: f.month,
-          kind: action === "bonus" ? "bonus" : "fine",
-          amount,
-          note,
-          createdAt: `${date}T12:00:00.000Z`,
-        });
-      }
-
-      state.financeActionUserId = userId;
-      persist();
-      renderFinanceTable();
-      renderFinanceHistory();
-      renderFinanceActions(action);
+      selectedAction = btn.dataset.actionSelect;
+      highlight();
     };
   });
+
+  el.financeActionsForm.querySelector('[data-action-submit]').onclick = () => {
+    const fd = new FormData(el.financeActionsForm);
+    const userId = String(fd.get("userId") || "");
+    const amount = Number(fd.get("amount") || 0);
+    const date = String(fd.get("date") || todayISO());
+    const note = String(fd.get("note") || "").trim();
+    if (!userId || amount <= 0) return;
+
+    if (selectedAction === "payout") {
+      const payoutType = String(fd.get("payoutType") || "Вне графика");
+      state.data.payouts.push({
+        id: crypto.randomUUID(),
+        userId,
+        month: f.month,
+        amount,
+        type: payoutType,
+        date,
+        note,
+      });
+    } else {
+      if (!note) return;
+      state.data.adjustments.push({
+        id: crypto.randomUUID(),
+        userId,
+        month: f.month,
+        kind: selectedAction === "bonus" ? "bonus" : "fine",
+        amount,
+        note,
+        createdAt: `${date}T12:00:00.000Z`,
+      });
+    }
+
+    state.financeActionUserId = userId;
+    persist();
+    renderFinanceTable();
+    renderFinanceHistory();
+    renderFinanceActions(selectedAction);
+  };
 }
 
 function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
@@ -731,7 +775,7 @@ function renderMyCabinet() {
     <p>Форма оплаты: ${u.payForm}${u.payForm === "Оклад" ? ` (${Number(u.monthlySalary || 0).toFixed(2)} ₽/мес)` : ""}${u.payForm === "Часовая" ? ` (${Number(u.hourlyRate || 0).toFixed(2)} ₽/ч)` : ""}</p>
     <p>Расчетная ставка за час в месяце: <b>${hourlyRateForMonth.toFixed(2)} ₽/ч</b></p>
     <form id="month-selector" class="inline-form">
-      <label>Месяц <input type="month" name="month" value="${month}" /></label>
+      <label>Месяц <select name="month">${buildMonthOptions(18).map((m) => `<option value="${m.value}" ${m.value === month ? "selected" : ""}>${m.label}</option>`).join("")}</select></label>
       <button class="btn btn-secondary" type="submit">Показать</button>
     </form>
     <p><strong>Статистика:</strong> смен отработано <b>${metrics.shiftCount}</b>, часов отработано <b>${metrics.hours.toFixed(2)}</b>.</p>
@@ -761,9 +805,9 @@ function renderMyCabinet() {
 
 function renderFinanceHistory() {
   const f = state.data.financeFilter;
-  const [year, month] = f.month.split("-").map(Number);
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59);
+  const period = getFinancePeriod();
+  const monthStart = period.start;
+  const monthEnd = period.end;
   const user = state.data.users.find((u) => u.id === state.financeHistoryUserId && u.role === "employee");
 
   if (!user) {
@@ -772,7 +816,7 @@ function renderFinanceHistory() {
     return;
   }
 
-  el.financeHistoryTitle.textContent = `История: ${user.lastName} ${user.firstName} (${f.month})`;
+  el.financeHistoryTitle.textContent = `История: ${user.lastName} ${user.firstName} (${period.label})`;
   const rows = buildMoneyHistoryEntries(user, f.month, monthStart, monthEnd);
   el.financeHistoryTable.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>${rows
     .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
@@ -814,7 +858,7 @@ function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
     .filter((p) => p.userId === user.id && p.month === month)
     .map((p) => ({
       date: p.date || `${month}-01`,
-      type: p.type === "advance" ? "Выплата аванс" : p.type === "salary" ? "Выплата зарплата" : "Выплата вне графика",
+      type: (p.type === "Аванс" || p.type === "advance") ? "Выплата аванс" : (p.type === "Зарплата" || p.type === "salary") ? "Выплата зарплата" : "Выплата вне графика",
       amount: -Number(p.amount || 0),
       note: p.note || "",
     }));
@@ -876,6 +920,8 @@ function loadData() {
     },
     financeFilter: {
       month: monthISO(new Date()),
+      from: monthBounds(monthISO(new Date())).from,
+      to: monthBounds(monthISO(new Date())).to,
       department: "Все отделы",
       employeeId: "all",
     },
@@ -901,7 +947,7 @@ function loadData() {
   data.workDaysByMonth = data.workDaysByMonth || {};
 
   if (!data.financeFilter?.month) {
-    data.financeFilter = { month: monthISO(new Date()), department: "Все отделы", employeeId: "all" };
+    data.financeFilter = { month: monthISO(new Date()), from: monthBounds(monthISO(new Date())).from, to: monthBounds(monthISO(new Date())).to, department: "Все отделы", employeeId: "all" };
   }
 
   return data;
@@ -916,7 +962,7 @@ function normalizePayouts(rawPayouts) {
         userId: p.split("_")[0],
         month: monthISO(new Date()),
         amount: 0,
-        type: "custom",
+        type: "Вне графика",
         date: todayISO(),
         note: "legacy",
       };
@@ -926,7 +972,7 @@ function normalizePayouts(rawPayouts) {
       userId: p.userId,
       month: p.month || monthFromDates(p.from, p.to) || monthISO(new Date()),
       amount: Number(p.amount || 0),
-      type: p.type || "custom",
+      type: p.type || "Вне графика",
       date: p.date || (p.paidAt ? String(p.paidAt).slice(0, 10) : todayISO()),
       note: p.note || "",
     };
@@ -937,6 +983,43 @@ function monthFromDates(from, to) {
   if (typeof from === "string" && from.length >= 7) return from.slice(0, 7);
   if (typeof to === "string" && to.length >= 7) return to.slice(0, 7);
   return "";
+}
+
+function getFinancePeriod() {
+  const f = state.data.financeFilter;
+  const bounds = monthBounds(f.month);
+  const from = f.from || bounds.from;
+  const to = f.to || bounds.to;
+  return {
+    start: new Date(`${from}T00:00:00`),
+    end: new Date(`${to}T23:59:59`),
+    label: `${formatDateRU(from)} — ${formatDateRU(to)}`,
+  };
+}
+
+function monthBounds(month) {
+  const [year, m] = month.split("-").map(Number);
+  const from = `${year}-${String(m).padStart(2, "0")}-01`;
+  const to = dateISO(new Date(year, m, 0));
+  return { from, to };
+}
+
+function buildMonthOptions(count = 12) {
+  const names = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+  const now = new Date();
+  const opts = [];
+  for (let i = -Math.floor(count / 2); i <= Math.floor(count / 2); i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    opts.push({ value, label: `${names[d.getMonth()]} ${d.getFullYear()}` });
+  }
+  return opts;
+}
+
+function formatDateRU(iso) {
+  const [y, m, d] = iso.split("-");
+  const names = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  return `${Number(d)} ${names[Number(m) - 1]} ${y}`;
 }
 
 function persist() {
