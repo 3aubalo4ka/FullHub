@@ -45,6 +45,7 @@ const el = {
   employeeCreateCard: document.getElementById("employee-create-card"),
   employeeCreateToggle: document.getElementById("employee-create-toggle"),
   employeeFilterForm: document.getElementById("employee-filter-form"),
+  birthdayReminderList: document.getElementById("birthday-reminder-list"),
   dictControls: document.getElementById("dictionary-controls"),
   dictEditToggle: document.getElementById("dict-edit-toggle"),
   employeesTable: document.getElementById("employees-table"),
@@ -180,6 +181,7 @@ function render() {
     renderEmployeeForm();
     renderDictionaries();
     renderEmployeeFilters();
+    renderBirthdayReminder();
     renderEmployeesTable();
     renderCalendar();
     renderShiftForm();
@@ -206,6 +208,7 @@ function renderEmployeeForm() {
     <label>Часовая ставка<input name="hourlyRate" type="number" min="0" step="0.01" placeholder="Для часовой оплаты" /></label>
     <label>Оклад в месяц<input name="monthlySalary" type="number" min="0" step="1" placeholder="Для оклада" /></label>
     <label>Отдел${makeSelect("department", d.departments)}</label>
+    <label>Дата рождения<input name="birthDate" type="date" /></label>
     <label>Телефон (логин)<input name="phone" required /></label>
     <label>Пароль<input name="password" required /></label>
     <button class="btn btn-primary" type="submit">Создать сотрудника</button>
@@ -238,6 +241,7 @@ function renderEmployeeForm() {
       hourlyRate: Number(fd.get("hourlyRate") || 0),
       monthlySalary: Number(fd.get("monthlySalary") || 0),
       department: String(fd.get("department") || ""),
+      birthDate: String(fd.get("birthDate") || ""),
       phone: String(fd.get("phone") || ""),
       password: String(fd.get("password") || ""),
     };
@@ -358,6 +362,34 @@ function renderEmployeeFilters() {
   };
 }
 
+function renderBirthdayReminder() {
+  const employees = state.data.users.filter((u) => u.role === "employee" && u.birthDate);
+  const today = new Date();
+  const upcoming = employees
+    .map((u) => {
+      const [y, m, d] = u.birthDate.split("-").map(Number);
+      const next = new Date(today.getFullYear(), m - 1, d);
+      if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+        next.setFullYear(today.getFullYear() + 1);
+      }
+      const days = Math.ceil((next - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+      return { u, days, nextDate: next };
+    })
+    .filter((x) => x.days <= 30)
+    .sort((a, b) => a.days - b.days)
+    .slice(0, 6);
+
+  if (!el.birthdayReminderList) return;
+  if (!upcoming.length) {
+    el.birthdayReminderList.innerHTML = '<p class="dict-hint">В ближайшие 30 дней дней рождений нет.</p>';
+    return;
+  }
+
+  el.birthdayReminderList.innerHTML = upcoming
+    .map((x) => `<div class="birthday-item"><span>Через <b>${x.days}</b> дн.</span><strong>${x.u.lastName} ${x.u.firstName} ${x.u.middleName}</strong></div>`)
+    .join("");
+}
+
 function renderEmployeesTable() {
   const q = state.employeeFilter.query.toLowerCase();
   const users = state.data.users
@@ -375,6 +407,7 @@ function renderEmployeesTable() {
     "Ставка",
     "Оклад",
     "Отдел",
+    "Дата рождения",
     "Телефон",
     "Пароль",
     "Действия",
@@ -392,6 +425,7 @@ function renderEmployeesTable() {
         <td><input type="number" min="0" step="0.01" data-f="hourlyRate" value="${u.hourlyRate || ""}"/></td>
         <td><input type="number" min="0" step="1" data-f="monthlySalary" value="${u.monthlySalary || ""}"/></td>
         <td>${makeSelect("department", state.data.dictionaries.departments, u.department, "data-f=department")}</td>
+        <td><input type="date" data-f="birthDate" value="${u.birthDate || ""}"/></td>
         <td><input data-f="phone" value="${u.phone}"/></td>
         <td><input data-f="password" value="${u.password}"/></td>
         <td><button class="btn btn-secondary save-user">Сохранить</button> <button class="btn btn-secondary del-user">Удалить</button></td>
@@ -1103,6 +1137,7 @@ function loadData() {
     if (u.department === "Отдел упаковки") u.department = "Отдел Упаковки";
     if (u.monthlySalary == null) u.monthlySalary = 0;
     if (u.hourlyRate == null) u.hourlyRate = 0;
+    if (!u.birthDate) u.birthDate = "";
   });
 
   data.shifts = Array.isArray(data.shifts) ? data.shifts : [];

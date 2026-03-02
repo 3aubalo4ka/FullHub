@@ -231,6 +231,36 @@ select:focus {
   font-size: 0.87rem;
 }
 
+.birthday-card {
+  border: 1px solid #fcd34d;
+  background: linear-gradient(135deg, #fff7ed, #fffbeb);
+}
+
+#birthday-reminder-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.birthday-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px dashed #f59e0b;
+  background: #ffffffcc;
+}
+
+.birthday-item span {
+  color: #92400e;
+  font-size: 0.86rem;
+}
+
+.birthday-item strong {
+  color: #7c2d12;
+}
+
 .table-wrap {
   overflow: auto;
   max-width: 100%;
