@@ -195,6 +195,17 @@ select:focus {
   margin: 0;
 }
 
+#employee-create-toggle {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  border-color: #15803d;
+  color: #fff;
+  box-shadow: 0 8px 16px rgba(21, 128, 61, 0.22);
+}
+
+#employee-filter-form {
+  margin-bottom: 0.6rem;
+}
+
 .dict-card {
   background: var(--surface-soft);
   border: 1px solid var(--line);

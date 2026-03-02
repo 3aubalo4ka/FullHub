@@ -8,6 +8,10 @@ const roleClassByPosition = {
   кладовщик: "role-storekeeper",
   упаковщик: "role-packer",
   водитель: "role-driver",
+  Грузчик: "role-loader",
+  Кладовщик: "role-storekeeper",
+  Упаковщик: "role-packer",
+  Водитель: "role-driver",
 };
 
 const state = {
@@ -20,6 +24,8 @@ const state = {
   financeActionUserId: null,
   dictEditMode: false,
   dictionaryDraft: null,
+  shiftGroup: "samara",
+  employeeFilter: { query: "", department: "all", position: "all" },
 };
 
 const el = {
@@ -36,6 +42,9 @@ const el = {
   adminView: document.getElementById("admin-view"),
   employeeView: document.getElementById("employee-view"),
   employeeForm: document.getElementById("employee-form"),
+  employeeCreateCard: document.getElementById("employee-create-card"),
+  employeeCreateToggle: document.getElementById("employee-create-toggle"),
+  employeeFilterForm: document.getElementById("employee-filter-form"),
   dictControls: document.getElementById("dictionary-controls"),
   dictEditToggle: document.getElementById("dict-edit-toggle"),
   employeesTable: document.getElementById("employees-table"),
@@ -44,6 +53,7 @@ const el = {
   shiftEditorTitle: document.getElementById("shift-editor-title"),
   shiftForm: document.getElementById("shift-form"),
   dayShiftsTable: document.getElementById("day-shifts-table"),
+  shiftsPageTitle: document.getElementById("shifts-page-title"),
   financeFilter: document.getElementById("finance-filter"),
   financeTable: document.getElementById("finance-table"),
   financeActionsForm: document.getElementById("finance-actions-form"),
@@ -55,7 +65,8 @@ const el = {
   tabs: [...document.querySelectorAll(".tab")],
   tabPanels: {
     employees: document.getElementById("tab-employees"),
-    shifts: document.getElementById("tab-shifts"),
+    shifts_samara: document.getElementById("tab-shifts"),
+    shifts_tolyatti: document.getElementById("tab-shifts"),
     finance: document.getElementById("tab-finance"),
   },
 };
@@ -68,6 +79,7 @@ function init() {
   wireAuth();
   wireTabs();
   wireDictEditor();
+  wireEmployeeCreateToggle();
   document.getElementById("prev-month").onclick = () => {
     state.viewMonth.setMonth(state.viewMonth.getMonth() - 1);
     renderCalendar();
@@ -120,13 +132,36 @@ function wireDictEditor() {
   };
 }
 
+function wireEmployeeCreateToggle() {
+  if (!el.employeeCreateToggle || !el.employeeCreateCard) return;
+  el.employeeCreateToggle.onclick = () => {
+    el.employeeCreateCard.classList.toggle("hidden");
+  };
+}
+
 function wireTabs() {
   el.tabs.forEach((tab) => {
     tab.onclick = () => {
+      const target = tab.dataset.tab;
+      if (target === "shifts_samara") {
+        state.shiftGroup = "samara";
+        if (el.shiftsPageTitle) el.shiftsPageTitle.textContent = "Смены Самара";
+      }
+      if (target === "shifts_tolyatti") {
+        state.shiftGroup = "tolyatti";
+        if (el.shiftsPageTitle) el.shiftsPageTitle.textContent = "Смены Тольятти";
+      }
+
       el.tabs.forEach((x) => x.classList.remove("active"));
       tab.classList.add("active");
-      Object.values(el.tabPanels).forEach((p) => p.classList.add("hidden"));
-      el.tabPanels[tab.dataset.tab].classList.remove("hidden");
+      [...new Set(Object.values(el.tabPanels))].forEach((p) => p.classList.add("hidden"));
+      el.tabPanels[target].classList.remove("hidden");
+
+      if (target.startsWith("shifts")) {
+        renderCalendar();
+        renderShiftForm();
+        renderDayShifts();
+      }
     };
   });
 }
@@ -144,6 +179,7 @@ function render() {
     el.employeeView.classList.add("hidden");
     renderEmployeeForm();
     renderDictionaries();
+    renderEmployeeFilters();
     renderEmployeesTable();
     renderCalendar();
     renderShiftForm();
@@ -207,6 +243,7 @@ function renderEmployeeForm() {
     };
     state.data.users.push(user);
     persist();
+    if (el.employeeCreateCard) el.employeeCreateCard.classList.add("hidden");
     render();
   };
 }
@@ -294,8 +331,40 @@ function renderDictionaries() {
   }
 }
 
+function renderEmployeeFilters() {
+  const deps = ["all", ...state.data.dictionaries.departments];
+  const positions = ["all", ...state.data.dictionaries.positions];
+  el.employeeFilterForm.innerHTML = `
+    <label>Поиск
+      <input name="query" value="${state.employeeFilter.query}" placeholder="Фамилия, имя, телефон" />
+    </label>
+    <label>Отдел
+      <select name="department">${deps.map((d) => `<option value="${d}" ${d===state.employeeFilter.department?"selected":""}>${d==="all"?"Все отделы":d}</option>`).join("")}</select>
+    </label>
+    <label>Должность
+      <select name="position">${positions.map((d) => `<option value="${d}" ${d===state.employeeFilter.position?"selected":""}>${d==="all"?"Все должности":d}</option>`).join("")}</select>
+    </label>
+    <button class="btn btn-secondary" type="submit">Применить</button>
+  `;
+  el.employeeFilterForm.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(el.employeeFilterForm);
+    state.employeeFilter = {
+      query: String(fd.get("query") || "").trim(),
+      department: String(fd.get("department") || "all"),
+      position: String(fd.get("position") || "all"),
+    };
+    renderEmployeesTable();
+  };
+}
+
 function renderEmployeesTable() {
-  const users = state.data.users.filter((u) => u.role !== "admin");
+  const q = state.employeeFilter.query.toLowerCase();
+  const users = state.data.users
+    .filter((u) => u.role !== "admin")
+    .filter((u) => state.employeeFilter.department === "all" || u.department === state.employeeFilter.department)
+    .filter((u) => state.employeeFilter.position === "all" || u.position === state.employeeFilter.position)
+    .filter((u) => !q || `${u.lastName} ${u.firstName} ${u.phone}`.toLowerCase().includes(q));
   const headers = [
     "Фамилия",
     "Имя",
@@ -359,6 +428,12 @@ function renderEmployeesTable() {
   });
 }
 
+function isUserInCurrentShiftGroup(user) {
+  if (!user || user.role !== "employee") return false;
+  if (state.shiftGroup === "tolyatti") return user.department === "Склад Тольятти";
+  return ["Отдел Упаковки", "Склад Самара", "Водители"].includes(user.department);
+}
+
 function renderCalendar() {
   const year = state.viewMonth.getFullYear();
   const month = state.viewMonth.getMonth();
@@ -383,13 +458,13 @@ function renderCalendar() {
     if (iso === state.selectedDate) day.classList.add("selected");
     day.innerHTML = `<div class="day-num">${d.getDate()}</div>`;
 
-    const shifts = state.data.shifts.filter((s) => s.date === iso);
+    const shifts = state.data.shifts.filter((s) => s.date === iso && isUserInCurrentShiftGroup(state.data.users.find((u) => u.id === s.userId)));
     shifts.forEach((s) => {
       const user = state.data.users.find((u) => u.id === s.userId);
       if (!user) return;
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = `shift-chip ${roleClassByPosition[user.position] || ""}`;
+      chip.className = `shift-chip ${roleClassByPosition[user.position] || roleClassByPosition[(user.position || "").toLowerCase()] || ""}`;
       chip.textContent = `${user.lastName} ${user.payForm === "Сдельная" ? "(сделка)" : `${s.start}-${s.end}`}`;
       chip.onclick = (e) => {
         e.stopPropagation();
@@ -408,7 +483,7 @@ function renderCalendar() {
 }
 
 function renderShiftForm() {
-  const emps = state.data.users.filter((u) => u.role === "employee");
+  const emps = state.data.users.filter((u) => isUserInCurrentShiftGroup(u));
   el.shiftEditorTitle.textContent = `Смены на ${state.selectedDate}`;
   el.shiftForm.innerHTML = `
     <label>Сотрудник<select name="userId">${emps
@@ -456,7 +531,7 @@ function renderShiftForm() {
 }
 
 function renderDayShifts() {
-  const rows = state.data.shifts.filter((s) => s.date === state.selectedDate);
+  const rows = state.data.shifts.filter((s) => s.date === state.selectedDate && isUserInCurrentShiftGroup(state.data.users.find((u) => u.id === s.userId)));
   el.dayShiftsTable.innerHTML = `<thead><tr><th>Сотрудник</th><th>Тип</th><th>Начало</th><th>Конец</th><th>Сделка</th><th>Действия</th></tr></thead><tbody>${rows
     .map((s) => {
       const u = state.data.users.find((x) => x.id === s.userId);
@@ -963,9 +1038,9 @@ function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
   const base = {
     dictionaries: {
-      positions: ["грузчик", "кладовщик", "упаковщик", "водитель"],
+      positions: ["Грузчик", "Кладовщик", "Упаковщик", "Водитель"],
       payForms: ["Сдельная", "Часовая", "Оклад"],
-      departments: ["Отдел упаковки", "Склад Самара", "Склад Тольятти", "Водители"],
+      departments: ["Отдел Упаковки", "Склад Самара", "Склад Тольятти", "Водители"],
     },
     users: [
       {
@@ -989,7 +1064,7 @@ function loadData() {
         lastName: "Фролов",
         firstName: "Павел",
         middleName: "Олегович",
-        position: "грузчик",
+        position: "Грузчик",
         employmentType: "Официально",
         payForm: "Оклад",
         hourlyRate: 0,
@@ -1024,6 +1099,8 @@ function loadData() {
   data.users.forEach((u) => {
     if (!u.employmentType) u.employmentType = "Неофициально";
     if (!u.payForm) u.payForm = "Часовая";
+    if (u.position && /^[а-я]/.test(u.position)) u.position = u.position.charAt(0).toUpperCase() + u.position.slice(1);
+    if (u.department === "Отдел упаковки") u.department = "Отдел Упаковки";
     if (u.monthlySalary == null) u.monthlySalary = 0;
     if (u.hourlyRate == null) u.hourlyRate = 0;
   });
