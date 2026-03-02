@@ -18,6 +18,8 @@ const state = {
   employeeMonth: monthISO(new Date()),
   financeHistoryUserId: null,
   financeActionUserId: null,
+  dictEditMode: false,
+  dictionaryDraft: null,
 };
 
 const el = {
@@ -35,6 +37,7 @@ const el = {
   employeeView: document.getElementById("employee-view"),
   employeeForm: document.getElementById("employee-form"),
   dictControls: document.getElementById("dictionary-controls"),
+  dictEditToggle: document.getElementById("dict-edit-toggle"),
   employeesTable: document.getElementById("employees-table"),
   calendarTitle: document.getElementById("calendar-title"),
   calendar: document.getElementById("calendar"),
@@ -64,6 +67,7 @@ function init() {
   if (el.appVersionPill) el.appVersionPill.textContent = `Версия: ${APP_VERSION}`;
   wireAuth();
   wireTabs();
+  wireDictEditor();
   document.getElementById("prev-month").onclick = () => {
     state.viewMonth.setMonth(state.viewMonth.getMonth() - 1);
     renderCalendar();
@@ -98,6 +102,21 @@ function wireAuth() {
   el.resetDataBtn.onclick = () => {
     clearLegacyStorageKeys(true);
     window.location.reload();
+  };
+}
+
+function wireDictEditor() {
+  if (!el.dictEditToggle) return;
+  el.dictEditToggle.onclick = () => {
+    if (!state.dictEditMode) {
+      state.dictEditMode = true;
+      state.dictionaryDraft = JSON.parse(JSON.stringify(state.data.dictionaries));
+      renderDictionaries();
+      return;
+    }
+    state.dictEditMode = false;
+    state.dictionaryDraft = null;
+    renderDictionaries();
   };
 }
 
@@ -198,17 +217,42 @@ function renderDictionaries() {
     ["payForms", "Формы оплаты"],
     ["departments", "Отделы"],
   ];
-  el.dictControls.innerHTML = defs
+
+  const source = state.dictEditMode
+    ? state.dictionaryDraft || JSON.parse(JSON.stringify(state.data.dictionaries))
+    : state.data.dictionaries;
+
+  if (state.dictEditMode && !state.dictionaryDraft) {
+    state.dictionaryDraft = JSON.parse(JSON.stringify(state.data.dictionaries));
+  }
+
+  if (el.dictEditToggle) {
+    el.dictEditToggle.textContent = state.dictEditMode ? "💾" : "⚙️";
+    el.dictEditToggle.title = state.dictEditMode ? "Сохранить изменения" : "Редактировать справочники";
+  }
+
+  const controls = defs
     .map(([key, title]) => {
-      const opts = state.data.dictionaries[key]
-        .map(
-          (v, i) =>
-            `<li>${v} <button type="button" data-key="${key}" data-index="${i}" class="dict-del">Удалить</button></li>`
-        )
+      const opts = source[key]
+        .map((v, i) => {
+          if (!state.dictEditMode) return `<li>${v}</li>`;
+          return `<li>${v} <button type="button" data-key="${key}" data-index="${i}" class="dict-del">Удалить</button></li>`;
+        })
         .join("");
-      return `<div><strong>${title}</strong><ul>${opts}</ul><form data-key="${key}" class="dict-add"><input name="value" required placeholder="Новое значение"/><button class="btn btn-secondary">Добавить</button></form></div>`;
+      const addForm = state.dictEditMode
+        ? `<form data-key="${key}" class="dict-add"><input name="value" required placeholder="Новое значение"/><button class="btn btn-secondary">Добавить</button></form>`
+        : "";
+      return `<div class="dict-card"><strong>${title}</strong><ul>${opts}</ul>${addForm}</div>`;
     })
     .join("");
+
+  const actionRow = state.dictEditMode
+    ? `<div class="dict-actions"><button type="button" class="btn btn-primary" id="dict-save-btn">Сохранить</button><button type="button" class="btn btn-secondary" id="dict-cancel-btn">Отмена</button></div>`
+    : `<p class="dict-hint">Для изменений нажмите ⚙️</p>`;
+
+  el.dictControls.innerHTML = `${controls}${actionRow}`;
+
+  if (!state.dictEditMode) return;
 
   el.dictControls.querySelectorAll(".dict-add").forEach((form) => {
     form.onsubmit = (e) => {
@@ -216,20 +260,38 @@ function renderDictionaries() {
       const key = form.dataset.key;
       const v = String(new FormData(form).get("value") || "").trim();
       if (!v) return;
-      if (!state.data.dictionaries[key].includes(v)) state.data.dictionaries[key].push(v);
-      persist();
-      render();
+      if (!state.dictionaryDraft[key].includes(v)) state.dictionaryDraft[key].push(v);
+      renderDictionaries();
     };
   });
 
   el.dictControls.querySelectorAll(".dict-del").forEach((btn) => {
     btn.onclick = () => {
       const { key, index } = btn.dataset;
-      state.data.dictionaries[key].splice(Number(index), 1);
+      state.dictionaryDraft[key].splice(Number(index), 1);
+      renderDictionaries();
+    };
+  });
+
+  const saveBtn = document.getElementById("dict-save-btn");
+  if (saveBtn) {
+    saveBtn.onclick = () => {
+      state.data.dictionaries = JSON.parse(JSON.stringify(state.dictionaryDraft));
+      state.dictEditMode = false;
+      state.dictionaryDraft = null;
       persist();
       render();
     };
-  });
+  }
+
+  const cancelBtn = document.getElementById("dict-cancel-btn");
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      state.dictEditMode = false;
+      state.dictionaryDraft = null;
+      renderDictionaries();
+    };
+  }
 }
 
 function renderEmployeesTable() {

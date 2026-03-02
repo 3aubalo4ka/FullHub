@@ -171,6 +171,55 @@ select:focus {
   gap: 0.8rem;
 }
 
+#tab-employees .card {
+  overflow: hidden;
+}
+
+#tab-employees .grid-form {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+#tab-employees .grid-form button {
+  align-self: end;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.card-head h3 {
+  margin: 0;
+}
+
+.dict-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem;
+}
+
+.dict-card ul {
+  margin: 0.5rem 0;
+  padding-left: 1.1rem;
+}
+
+.dict-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.dict-hint {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.87rem;
+}
+
 .table-wrap {
   overflow: auto;
   max-width: 100%;
@@ -343,6 +392,10 @@ th {
   .inline-form {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  #tab-employees .grid-form {
+    grid-template-columns: 1fr;
   }
 
   .action-buttons-row {
