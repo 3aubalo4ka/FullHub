@@ -2,6 +2,7 @@ const APP_VERSION = "2026.02.27-v4";
 const STORAGE_KEY = "fullhub-data-v4";
 const SHIFT_HOURS_STANDARD = 9;
 const NDFL_RATE = 0.13;
+const ATTENDANCE_QR_PREFIX = "FULLHUB_ATTENDANCE";
 
 const roleClassByPosition = {
   грузчик: "role-loader",
@@ -46,6 +47,8 @@ const el = {
   employeeCreateToggle: document.getElementById("employee-create-toggle"),
   employeeFilterForm: document.getElementById("employee-filter-form"),
   birthdayReminderList: document.getElementById("birthday-reminder-list"),
+  attendanceQrCanvas: document.getElementById("attendance-qr-canvas"),
+  attendanceQrToken: document.getElementById("attendance-qr-token"),
   dictControls: document.getElementById("dictionary-controls"),
   dictEditToggle: document.getElementById("dict-edit-toggle"),
   employeesTable: document.getElementById("employees-table"),
@@ -182,6 +185,7 @@ function render() {
     renderDictionaries();
     renderEmployeeFilters();
     renderBirthdayReminder();
+    renderAttendanceQrCard();
     renderEmployeesTable();
     renderCalendar();
     renderShiftForm();
@@ -388,6 +392,21 @@ function renderBirthdayReminder() {
   el.birthdayReminderList.innerHTML = upcoming
     .map((x) => `<div class="birthday-item"><span>Через <b>${x.days}</b> дн.</span><strong>${x.u.lastName} ${x.u.firstName} ${x.u.middleName}</strong></div>`)
     .join("");
+}
+
+function renderAttendanceQrCard() {
+  if (!el.attendanceQrCanvas || !el.attendanceQrToken) return;
+  const token = buildTodayAttendanceToken();
+  el.attendanceQrToken.textContent = token;
+
+  if (!window.QRCode || typeof window.QRCode.toCanvas !== "function") {
+    return;
+  }
+
+  window.QRCode.toCanvas(el.attendanceQrCanvas, token, {
+    width: 200,
+    margin: 1,
+  });
 }
 
 function renderEmployeesTable() {
@@ -944,6 +963,14 @@ function renderMyCabinet() {
   const todayShift = allFutureShifts.find((s) => s.date === todayISO());
   const nextShift = allFutureShifts.find((s) => s.date > todayISO()) || null;
   const nextPayout = getNextPlannedPayoutDate();
+  const shiftToday = state.data.shifts.find((s) => s.userId === u.id && s.date === todayISO()) || null;
+  const attendanceState = shiftToday
+    ? shiftToday.actualStart && shiftToday.actualEnd
+      ? `Смена закрыта: ${shiftToday.actualStart}-${shiftToday.actualEnd}`
+      : shiftToday.actualStart
+        ? `Смена начата в ${shiftToday.actualStart}`
+        : "Смена ещё не открыта"
+    : "На сегодня смена не назначена";
 
   const hourlyRateForMonth =
     u.payForm === "Оклад" && Number(state.data.workDaysByMonth[month] || 0) > 0
@@ -975,6 +1002,12 @@ function renderMyCabinet() {
       <div class="kpi-card"><span>Следующая смена</span><strong>${nextShift ? `${formatDateRU(nextShift.date)} • ${nextShift.start || "сделка"}${nextShift.end ? `–${nextShift.end}` : ""}` : "Не назначена"}</strong></div>
     </div>
 
+    <div class="attendance-card">
+      <h3>Отметка прихода/ухода по QR</h3>
+      <p class="dict-hint">Статус: <b>${attendanceState}</b></p>
+      <button class="btn btn-primary" id="scan-attendance-btn" type="button">Сканировать QR-код</button>
+    </div>
+
     <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
   `;
 
@@ -985,6 +1018,21 @@ function renderMyCabinet() {
     if (chosen) state.employeeMonth = chosen;
     renderMyCabinet();
   };
+
+  const scanBtn = document.getElementById("scan-attendance-btn");
+  if (scanBtn) {
+    scanBtn.onclick = async () => {
+      const scanned = await scanAttendanceQrToken();
+      if (!scanned) return;
+      if (!isAttendanceTokenValid(scanned)) {
+        alert("Неверный QR-код. Используйте QR-код из панели администратора.");
+        return;
+      }
+      const msg = applyAttendanceMark(u.id);
+      alert(msg);
+      renderMyCabinet();
+    };
+  }
 
   el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th><th>График</th></tr></thead><tbody>${shifts
     .map((s) => {
@@ -1068,6 +1116,85 @@ function makeSelect(name, options, selected, extra = "") {
     .join("")}</select>`;
 }
 
+function buildTodayAttendanceToken() {
+  return `${ATTENDANCE_QR_PREFIX}|${todayISO()}`;
+}
+
+function isAttendanceTokenValid(token) {
+  return String(token || "").trim() === buildTodayAttendanceToken();
+}
+
+function nowTimeHHMM() {
+  return new Date().toTimeString().slice(0, 5);
+}
+
+function applyAttendanceMark(userId) {
+  const shift = state.data.shifts.find((s) => s.userId === userId && s.date === todayISO());
+  if (!shift) return "На сегодня вам не назначена смена.";
+
+  const now = nowTimeHHMM();
+  if (!shift.actualStart) {
+    shift.actualStart = now;
+    if (!shift.start) shift.start = now;
+    persist();
+    return `Начало смены зафиксировано: ${now}`;
+  }
+
+  if (!shift.actualEnd) {
+    shift.actualEnd = now;
+    if (!shift.end) shift.end = now;
+    persist();
+    return `Окончание смены зафиксировано: ${now}`;
+  }
+
+  return `Смена уже закрыта (${shift.actualStart} - ${shift.actualEnd}).`;
+}
+
+async function scanAttendanceQrToken() {
+  if (!window.Html5Qrcode) {
+    return window.prompt("Сканер камеры недоступен. Введите значение из QR-кода:", "") || "";
+  }
+
+  const modal = document.createElement("div");
+  modal.className = "qr-modal";
+  modal.innerHTML = `
+    <div class="qr-modal-card">
+      <h3>Сканирование QR-кода</h3>
+      <div id="qr-reader" class="qr-reader"></div>
+      <button class="btn btn-secondary" type="button" id="qr-cancel-btn">Отмена</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const readerId = "qr-reader";
+  const qr = new window.Html5Qrcode(readerId);
+
+  return new Promise((resolve) => {
+    const cleanup = async (result = "") => {
+      try {
+        if (qr.isScanning) await qr.stop();
+      } catch (e) {
+        // ignore stop errors
+      }
+      await qr.clear();
+      modal.remove();
+      resolve(result);
+    };
+
+    modal.querySelector("#qr-cancel-btn").onclick = () => cleanup("");
+
+    qr.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 220 },
+      (decodedText) => cleanup(decodedText),
+      () => {}
+    ).catch(async () => {
+      const fallback = window.prompt("Не удалось запустить камеру. Введите значение из QR-кода:", "") || "";
+      await cleanup(fallback);
+    });
+  });
+}
+
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
   const base = {
@@ -1141,6 +1268,10 @@ function loadData() {
   });
 
   data.shifts = Array.isArray(data.shifts) ? data.shifts : [];
+  data.shifts.forEach((s) => {
+    if (!s.actualStart) s.actualStart = "";
+    if (!s.actualEnd) s.actualEnd = "";
+  });
   data.payouts = normalizePayouts(data.payouts);
   data.adjustments = Array.isArray(data.adjustments) ? data.adjustments : [];
   data.workDaysByMonth = data.workDaysByMonth || {};

@@ -66,6 +66,13 @@
             <h3>🎉 Ближайшие дни рождения</h3>
             <div id="birthday-reminder-list"></div>
           </div>
+
+          <div class="card">
+            <h3>QR-код для отметки прихода/ухода</h3>
+            <canvas id="attendance-qr-canvas" width="200" height="200"></canvas>
+            <p class="dict-hint">Сотрудник сканирует этот код, чтобы открыть/закрыть смену на сегодня.</p>
+            <code id="attendance-qr-token"></code>
+          </div>
           <div class="card">
             <div class="card-head">
               <h3>Список сотрудников</h3>
@@ -129,6 +136,8 @@
       </section>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="app.js?v=2026-02-27-v4"></script>
   </body>
 </html>

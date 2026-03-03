@@ -261,6 +261,46 @@ select:focus {
   color: #7c2d12;
 }
 
+#attendance-qr-canvas {
+  display: block;
+  margin: 0.4rem 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.attendance-card {
+  margin-top: 0.9rem;
+  padding: 0.9rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.qr-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.qr-modal-card {
+  width: min(92vw, 420px);
+  background: #fff;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 10px 25px rgba(2, 6, 23, 0.28);
+}
+
+.qr-reader {
+  width: 100%;
+  min-height: 240px;
+  margin: 0.6rem 0;
+}
+
 .table-wrap {
   overflow: auto;
   max-width: 100%;
