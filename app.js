@@ -252,6 +252,7 @@ function renderEmployeeForm() {
     <label>Должность${makeSelect("position", d.positions)}</label>
     <label>Трудоустройство${makeSelect("employmentType", ["Официально", "Неофициально"], "Неофициально")}</label>
     <label>Форма оплаты${makeSelect("payForm", d.payForms)}</label>
+    <label>График${makeSelect("schedule", d.schedules || [])}</label>
     <label>Часовая ставка<input name="hourlyRate" type="number" min="0" step="0.01" placeholder="Для часовой оплаты" /></label>
     <label>Оклад в месяц<input name="monthlySalary" type="number" min="0" step="1" placeholder="Для оклада" /></label>
     <label>Отдел${makeSelect("department", d.departments)}</label>
@@ -285,6 +286,7 @@ function renderEmployeeForm() {
       position: String(fd.get("position") || ""),
       employmentType: String(fd.get("employmentType") || "Неофициально"),
       payForm: String(fd.get("payForm") || "Часовая"),
+      schedule: String(fd.get("schedule") || ""),
       hourlyRate: Number(fd.get("hourlyRate") || 0),
       monthlySalary: Number(fd.get("monthlySalary") || 0),
       department: String(fd.get("department") || ""),
@@ -304,6 +306,7 @@ function renderDictionaries() {
     ["positions", "Должности"],
     ["payForms", "Формы оплаты"],
     ["departments", "Отделы"],
+    ["schedules", "Графики"],
   ];
 
   const source = state.dictEditMode
@@ -466,6 +469,7 @@ function renderEmployeesTable() {
     "Должность",
     "Оформление",
     "Форма оплаты",
+    "График",
     "Ставка",
     "Оклад",
     "Отдел",
@@ -484,6 +488,7 @@ function renderEmployeesTable() {
         <td>${makeSelect("position", state.data.dictionaries.positions, u.position, "data-f=position")}</td>
         <td>${makeSelect("employmentType", ["Официально", "Неофициально"], u.employmentType || "Неофициально", "data-f=employmentType")}</td>
         <td>${makeSelect("payForm", state.data.dictionaries.payForms, u.payForm, "data-f=payForm")}</td>
+        <td>${makeSelect("schedule", state.data.dictionaries.schedules || [], u.schedule || "", "data-f=schedule")}</td>
         <td><input type="number" min="0" step="0.01" data-f="hourlyRate" value="${u.hourlyRate || ""}"/></td>
         <td><input type="number" min="0" step="1" data-f="monthlySalary" value="${u.monthlySalary || ""}"/></td>
         <td>${makeSelect("department", state.data.dictionaries.departments, u.department, "data-f=department")}</td>
@@ -541,6 +546,7 @@ function getEmployeesByDepartment(department) {
 
 function renderShiftBlocks() {
   if (!el.shiftsBlocks) return;
+  ensureScheduledShiftsForVisibleMonths();
   const blocks = shiftBlocksConfig();
   el.shiftsBlocks.innerHTML = blocks
     .map((b) => {
@@ -586,6 +592,58 @@ function renderShiftBlocks() {
     renderShiftFormForBlock(b);
     renderDayShiftsForBlock(b);
   });
+}
+
+function scheduleMode(user) {
+  const schedule = String(user?.schedule || "");
+  if (schedule === "5/2 (с понедельника по пятницу)") return "weekday_1_5";
+  if (schedule === "5/2 (со вторника по субботу)") return "weekday_2_6";
+  if (schedule === "5/2 (с понедельника по пятницу - свободный)") return "weekday_1_5_free";
+  if (schedule === "подработка") return "part_time";
+  return "manual";
+}
+
+function isScheduleWorkday(mode, dateObj) {
+  const day = dateObj.getDay();
+  if (mode === "weekday_1_5" || mode === "weekday_1_5_free") return day >= 1 && day <= 5;
+  if (mode === "weekday_2_6") return day >= 2 && day <= 6;
+  return false;
+}
+
+function ensureScheduledShiftsForVisibleMonths() {
+  const months = new Set(Object.values(state.shiftViews || {}).map((v) => monthISO(v.month)));
+  state.data.users
+    .filter((u) => u.role === "employee")
+    .forEach((u) => {
+      const mode = scheduleMode(u);
+      if (mode !== "weekday_1_5" && mode !== "weekday_2_6" && mode !== "weekday_1_5_free") return;
+      months.forEach((m) => ensureScheduledShiftsForEmployeeMonth(u, m, mode));
+    });
+}
+
+function ensureScheduledShiftsForEmployeeMonth(user, month, mode) {
+  const [year, mon] = month.split("-").map(Number);
+  if (!year || !mon) return;
+  const lastDay = new Date(year, mon, 0).getDate();
+  for (let d = 1; d <= lastDay; d++) {
+    const date = new Date(year, mon - 1, d);
+    if (!isScheduleWorkday(mode, date)) continue;
+    const iso = dateISO(date);
+    const exists = state.data.shifts.some((s) => s.userId === user.id && s.date === iso);
+    if (exists) continue;
+    const isPiece = user.payForm === "Сдельная";
+    const free = mode === "weekday_1_5_free";
+    state.data.shifts.push({
+      id: crypto.randomUUID(),
+      date: iso,
+      userId: user.id,
+      start: isPiece || free ? "" : "09:00",
+      end: isPiece || free ? "" : "18:00",
+      pieceAmount: 0,
+      actualStart: "",
+      actualEnd: "",
+    });
+  }
 }
 
 function renderCalendarForBlock(block) {
@@ -661,8 +719,9 @@ function renderShiftFormForBlock(block) {
   const sync = () => {
     const u = state.data.users.find((x) => x.id === userSel.value);
     const isPiece = u?.payForm === "Сдельная";
-    start.disabled = isPiece;
-    end.disabled = isPiece;
+    const freeSchedule = scheduleMode(u) === "weekday_1_5_free";
+    start.disabled = isPiece || freeSchedule;
+    end.disabled = isPiece || freeSchedule;
     piece.disabled = !isPiece;
   };
   userSel.onchange = sync;
@@ -1842,7 +1901,24 @@ function normalizeCheckInTime(timeHHMM) {
 }
 
 function applyAttendanceMark(userId) {
-  const shift = state.data.shifts.find((s) => s.userId === userId && s.date === todayISO());
+  const user = state.data.users.find((u) => u.id === userId);
+  if (!user) return "Пользователь не найден.";
+
+  let shift = state.data.shifts.find((s) => s.userId === userId && s.date === todayISO());
+  if (!shift && scheduleMode(user) === "part_time") {
+    shift = {
+      id: crypto.randomUUID(),
+      date: todayISO(),
+      userId,
+      start: "",
+      end: "",
+      pieceAmount: 0,
+      actualStart: "",
+      actualEnd: "",
+    };
+    state.data.shifts.push(shift);
+  }
+
   if (!shift) return "На сегодня вам не назначена смена.";
 
   const now = nowTimeHHMM();
@@ -1916,6 +1992,12 @@ function loadData() {
       positions: ["Грузчик", "Кладовщик", "Упаковщик", "Водитель"],
       payForms: ["Сдельная", "Часовая", "Оклад"],
       departments: ["Отдел Упаковки", "Склад Самара", "Склад Тольятти", "Водители"],
+      schedules: [
+        "5/2 (с понедельника по пятницу)",
+        "5/2 (со вторника по субботу)",
+        "5/2 (с понедельника по пятницу - свободный)",
+        "подработка",
+      ],
     },
     users: [
       {
@@ -1927,6 +2009,7 @@ function loadData() {
         position: "управляющий",
         employmentType: "Официально",
         payForm: "Оклад",
+        schedule: "5/2 (с понедельника по пятницу)",
         hourlyRate: 0,
         monthlySalary: 120000,
         department: "Офис",
@@ -1942,6 +2025,7 @@ function loadData() {
         position: "Грузчик",
         employmentType: "Официально",
         payForm: "Оклад",
+        schedule: "5/2 (с понедельника по пятницу)",
         hourlyRate: 0,
         monthlySalary: 55000,
         department: "Склад Самара",
@@ -1987,6 +2071,9 @@ function loadData() {
 
   data.dictionaries = data.dictionaries || base.dictionaries;
   if (!data.dictionaries.payForms?.includes("Оклад")) data.dictionaries.payForms.push("Оклад");
+  data.dictionaries.schedules = Array.isArray(data.dictionaries.schedules) && data.dictionaries.schedules.length
+    ? data.dictionaries.schedules
+    : base.dictionaries.schedules;
 
   data.users = Array.isArray(data.users) ? data.users : base.users;
   data.users.forEach((u) => {
@@ -1997,6 +2084,7 @@ function loadData() {
     if (u.monthlySalary == null) u.monthlySalary = 0;
     if (u.hourlyRate == null) u.hourlyRate = 0;
     if (!u.birthDate) u.birthDate = "";
+    if (!u.schedule) u.schedule = "5/2 (с понедельника по пятницу)";
   });
 
   data.shifts = Array.isArray(data.shifts) ? data.shifts : [];
