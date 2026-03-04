@@ -26,6 +26,8 @@ const state = {
   financeSelectedUserIds: [],
   financeActionMode: "payout",
   openShiftsSelection: [],
+  holidayDaysPanelOpen: false,
+  finesPanelOpen: false,
   workDaysEditMode: false,
   workDaysYear: new Date().getFullYear(),
   workDaysPanelOpen: false,
@@ -80,6 +82,14 @@ const el = {
   openShiftsTable: document.getElementById("open-shifts-table"),
   openShiftsOpenBtn: document.getElementById("open-shifts-open-btn"),
   openShiftsCloseBtn: document.getElementById("open-shifts-close-btn"),
+  holidayDaysToggle: document.getElementById("holiday-days-toggle"),
+  holidayDaysContent: document.getElementById("holiday-days-content"),
+  holidayDaysForm: document.getElementById("holiday-days-form"),
+  holidayDaysList: document.getElementById("holiday-days-list"),
+  finesToggle: document.getElementById("fines-toggle"),
+  finesContent: document.getElementById("fines-content"),
+  autoFinesSettings: document.getElementById("auto-fines-settings"),
+  finesTable: document.getElementById("fines-table"),
   workDaysBlockToggle: document.getElementById("workdays-block-toggle"),
   workDaysEditToggle: document.getElementById("workdays-edit-toggle"),
   workDaysGrid: document.getElementById("workdays-grid"),
@@ -223,6 +233,8 @@ function render() {
     renderFinanceTable();
     renderFinanceHistory();
     renderOpenShiftsAdmin();
+    renderHolidayDaysCard();
+    renderFinesAdminCard();
     renderAnalytics();
   } else {
     el.adminView.classList.add("hidden");
@@ -850,6 +862,8 @@ function renderFinanceFilter() {
     renderFinanceTable();
     renderFinanceHistory();
     renderOpenShiftsAdmin();
+    renderHolidayDaysCard();
+    renderFinesAdminCard();
     renderAnalytics();
   };
 }
@@ -1166,6 +1180,167 @@ function renderOpenShiftsAdmin() {
   }
 }
 
+function renderHolidayDaysCard() {
+  if (!el.holidayDaysToggle || !el.holidayDaysContent || !el.holidayDaysForm || !el.holidayDaysList) return;
+  el.holidayDaysToggle.textContent = state.holidayDaysPanelOpen ? "скрыть" : "открыть";
+  el.holidayDaysContent.classList.toggle("hidden", !state.holidayDaysPanelOpen);
+  el.holidayDaysToggle.onclick = () => {
+    state.holidayDaysPanelOpen = !state.holidayDaysPanelOpen;
+    renderHolidayDaysCard();
+  };
+
+  if (!state.holidayDaysPanelOpen) return;
+
+  el.holidayDaysForm.innerHTML = `
+    <label>Добавить праздничную дату
+      <input type="date" name="holidayDate" />
+    </label>
+    <button class="btn btn-secondary" type="submit">Добавить</button>
+  `;
+
+  const days = [...new Set((state.data.holidayDays || []).slice())].sort();
+  el.holidayDaysList.innerHTML = days.length
+    ? days.map((d) => `<div class="workday-item"><span>${d.split("-").reverse().join(".")}</span><button class="btn btn-secondary btn-mini" data-hol-del="${d}" type="button">Удалить</button></div>`).join("")
+    : `<p class="dict-hint">Праздничные дни не добавлены.</p>`;
+
+  el.holidayDaysForm.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(el.holidayDaysForm);
+    const iso = String(fd.get("holidayDate") || "");
+    if (!iso) return;
+    const md = iso.slice(5);
+    state.data.holidayDays = state.data.holidayDays || [];
+    if (!state.data.holidayDays.includes(md)) state.data.holidayDays.push(md);
+    persist();
+    renderHolidayDaysCard();
+    renderFinanceTable();
+    renderAnalytics();
+  };
+
+  el.holidayDaysList.querySelectorAll('[data-hol-del]').forEach((btn) => {
+    btn.onclick = () => {
+      const d = btn.dataset.holDel;
+      state.data.holidayDays = (state.data.holidayDays || []).filter((x) => x !== d);
+      persist();
+      renderHolidayDaysCard();
+      renderFinanceTable();
+      renderAnalytics();
+    };
+  });
+}
+
+function renderFinesAdminCard() {
+  if (!el.finesToggle || !el.finesContent || !el.autoFinesSettings || !el.finesTable) return;
+  el.finesToggle.textContent = state.finesPanelOpen ? "скрыть" : "открыть";
+  el.finesContent.classList.toggle("hidden", !state.finesPanelOpen);
+  el.finesToggle.onclick = () => {
+    state.finesPanelOpen = !state.finesPanelOpen;
+    renderFinesAdminCard();
+  };
+
+  if (!state.finesPanelOpen) return;
+
+  const cfg = state.data.autoFineSettings || { windowStart: "08:00", windowEnd: "08:50", perMinute: 20 };
+  state.data.autoFineSettings = cfg;
+
+  el.autoFinesSettings.innerHTML = `
+    <label>Интервал с <input type="time" name="windowStart" value="${cfg.windowStart}" /></label>
+    <label>Интервал по <input type="time" name="windowEnd" value="${cfg.windowEnd}" /></label>
+    <label>Штраф за минуту (₽) <input type="number" min="0" step="1" name="perMinute" value="${cfg.perMinute}" /></label>
+    <button class="btn btn-secondary" type="submit">Сохранить настройки</button>
+    <button class="btn btn-primary" type="button" id="apply-auto-fines">Начислить автоштрафы за период</button>
+  `;
+
+  el.autoFinesSettings.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(el.autoFinesSettings);
+    state.data.autoFineSettings = {
+      windowStart: String(fd.get("windowStart") || "08:00"),
+      windowEnd: String(fd.get("windowEnd") || "08:50"),
+      perMinute: Number(fd.get("perMinute") || 20),
+    };
+    persist();
+    renderFinesAdminCard();
+  };
+
+  const applyBtn = document.getElementById("apply-auto-fines");
+  if (applyBtn) {
+    applyBtn.onclick = () => {
+      applyAutoFinesForCurrentFinancePeriod();
+      renderFinesAdminCard();
+      renderFinanceTable();
+      renderFinanceHistory();
+    };
+  }
+
+  const period = getFinancePeriod();
+  const from = dateISO(period.start);
+  const to = dateISO(period.end);
+  const rows = state.data.adjustments
+    .filter((a) => a.kind === "fine")
+    .filter((a) => {
+      const d = (a.createdAt || `${a.month || monthISO(new Date())}-01`).slice(0, 10);
+      return d >= from && d <= to;
+    })
+    .map((a) => ({ a, user: state.data.users.find((u) => u.id === a.userId) }))
+    .filter((x) => x.user)
+    .sort((x, y) => ((x.a.createdAt || "").localeCompare(y.a.createdAt || "")));
+
+  el.finesTable.innerHTML = `<thead><tr><th>Дата</th><th>Сотрудник</th><th>Тип</th><th>Сумма</th><th>Комментарий</th><th>Действия</th></tr></thead><tbody>${rows
+    .map(({ a, user }) => `<tr><td>${(a.createdAt || "").slice(0, 10) || `${a.month}-01`}</td><td>${xName(user)}</td><td>${a.autoFine ? "Автоштраф" : "Ручной штраф"}</td><td>${Number(a.amount || 0).toFixed(2)} ₽</td><td>${a.note || ""}</td><td><button class="btn btn-secondary btn-mini" data-fine-edit="${a.id}" type="button">Изменить</button> <button class="btn btn-secondary btn-mini" data-fine-cancel="${a.id}" type="button">Отменить</button></td></tr>`)
+    .join("")}</tbody>`;
+
+  el.finesTable.querySelectorAll('[data-fine-edit]').forEach((btn) => {
+    btn.onclick = () => editHistoryEntry("adjustment", btn.dataset.fineEdit);
+  });
+  el.finesTable.querySelectorAll('[data-fine-cancel]').forEach((btn) => {
+    btn.onclick = () => cancelHistoryEntry("adjustment", btn.dataset.fineCancel);
+  });
+}
+
+function timeToMinutes(t) {
+  const [h, m] = String(t || "00:00").split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+function applyAutoFinesForCurrentFinancePeriod() {
+  const cfg = state.data.autoFineSettings || { windowStart: "08:00", windowEnd: "08:50", perMinute: 20 };
+  const period = getFinancePeriod();
+  const from = dateISO(period.start);
+  const to = dateISO(period.end);
+  const endMins = timeToMinutes(cfg.windowEnd);
+
+  state.data.shifts
+    .filter((s) => s.date >= from && s.date <= to)
+    .forEach((s) => {
+      const user = state.data.users.find((u) => u.id === s.userId && u.role === "employee");
+      if (!user) return;
+      if (state.data.adjustments.some((a) => a.autoFine && a.sourceShiftId === s.id)) return;
+
+      const actual = s.actualStart || "";
+      const actualMins = actual ? timeToMinutes(actual) : timeToMinutes(s.start || cfg.windowEnd);
+      const lateMinutes = Math.max(0, actualMins - endMins);
+      if (lateMinutes <= 0) return;
+
+      const amount = lateMinutes * Number(cfg.perMinute || 0);
+      if (amount <= 0) return;
+      const note = `Автоштраф ${amount} ₽ за опоздание на ${lateMinutes} мин., смена открыта в ${actual || "не открыта"}.`;
+      state.data.adjustments.push({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        month: s.date.slice(0, 7),
+        kind: "fine",
+        amount,
+        note,
+        createdAt: `${s.date}T12:00:00.000Z`,
+        autoFine: true,
+        sourceShiftId: s.id,
+      });
+    });
+
+  persist();
+}
+
 function renderAnalytics() {
   if (!el.analyticsFilter || !el.analyticsKpis || !el.analyticsDeptTable || !el.analyticsEmployeeTable) return;
 
@@ -1378,15 +1553,25 @@ function calculateNdfl(user, gross) {
   return gross * NDFL_RATE;
 }
 
+function isHolidayDate(isoDate) {
+  const md = String(isoDate || "").slice(5);
+  return (state.data.holidayDays || []).includes(md);
+}
+
+function shiftMultiplier(shift) {
+  return isHolidayDate(shift.date) ? 2 : 1;
+}
+
 function calculateShiftPay(shift, user, month) {
-  if (user.payForm === "Сдельная") return Number(shift.pieceAmount || 0);
+  const k = shiftMultiplier(shift);
+  if (user.payForm === "Сдельная") return Number(shift.pieceAmount || 0) * k;
   if (user.payForm === "Часовая") {
-    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0);
+    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0) * k;
   }
   const workDays = Number(state.data.workDaysByMonth[month] || 0);
   if (workDays <= 0) return 0;
   const hourlyRate = Number(user.monthlySalary || 0) / workDays / SHIFT_HOURS_STANDARD;
-  return hoursBetween(shift.start, shift.end) * hourlyRate;
+  return hoursBetween(shift.start, shift.end) * hourlyRate * k;
 }
 
 function renderMyCabinet() {
@@ -1610,6 +1795,7 @@ function editHistoryEntry(kind, id) {
   persist();
   renderFinanceTable();
   renderFinanceHistory();
+  renderFinesAdminCard();
 }
 
 function cancelHistoryEntry(kind, id) {
@@ -1626,6 +1812,7 @@ function cancelHistoryEntry(kind, id) {
   persist();
   renderFinanceTable();
   renderFinanceHistory();
+  renderFinesAdminCard();
 }
 
 function makeSelect(name, options, selected, extra = "") {
@@ -1787,6 +1974,12 @@ function loadData() {
       from: todayISO(),
       to: todayISO(),
     },
+    holidayDays: [],
+    autoFineSettings: {
+      windowStart: "08:00",
+      windowEnd: "08:50",
+      perMinute: 20,
+    },
   };
 
   if (!raw) return base;
@@ -1826,6 +2019,9 @@ function loadData() {
   if (!data.openShiftsFilter?.mode) {
     data.openShiftsFilter = { mode: "day", day: todayISO(), from: todayISO(), to: todayISO() };
   }
+
+  data.holidayDays = Array.isArray(data.holidayDays) ? data.holidayDays : [];
+  data.autoFineSettings = data.autoFineSettings || { windowStart: "08:00", windowEnd: "08:50", perMinute: 20 };
 
   return data;
 }
