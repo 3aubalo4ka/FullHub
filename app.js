@@ -1506,15 +1506,31 @@ function renderFinanceHistory() {
 
   if (!user) {
     el.financeHistoryTitle.textContent = "История начислений и списаний";
-    el.financeHistoryTable.innerHTML = "<tbody><tr><td>Выберите сотрудника в таблице финансов (кнопка «История»).</td></tr></tbody>";
+    el.financeHistoryTable.innerHTML = "<tbody><tr><td>Выберите сотрудника в таблице финансов (двойной клик по строке).</td></tr></tbody>";
     return;
   }
 
   el.financeHistoryTitle.textContent = `История: ${user.lastName} ${user.firstName} (${period.label})`;
   const rows = buildMoneyHistoryEntries(user, f.month, monthStart, monthEnd);
-  el.financeHistoryTable.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>${rows
-    .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
+  el.financeHistoryTable.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th><th>Действия</th></tr></thead><tbody>${rows
+    .map((row) => {
+      const actions = row.editable
+        ? `<button class="btn btn-secondary btn-mini" data-h-edit-kind="${row.editKind}" data-h-edit-id="${row.editId}">Изменить</button> <button class="btn btn-secondary btn-mini" data-h-cancel-kind="${row.editKind}" data-h-cancel-id="${row.editId}">Отменить</button>`
+        : "-";
+      return `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td><td>${actions}</td></tr>`;
+    })
     .join("")}</tbody>`;
+
+  el.financeHistoryTable.querySelectorAll('[data-h-edit-id]').forEach((btn) => {
+    btn.onclick = () => {
+      editHistoryEntry(btn.dataset.hEditKind, btn.dataset.hEditId);
+    };
+  });
+  el.financeHistoryTable.querySelectorAll('[data-h-cancel-id]').forEach((btn) => {
+    btn.onclick = () => {
+      cancelHistoryEntry(btn.dataset.hCancelKind, btn.dataset.hCancelId);
+    };
+  });
 }
 
 function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
@@ -1546,6 +1562,9 @@ function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
       type: a.kind === "bonus" ? "Премия" : "Штраф",
       amount: a.kind === "bonus" ? Number(a.amount || 0) : -Number(a.amount || 0),
       note: a.note || "",
+      editable: true,
+      editKind: "adjustment",
+      editId: a.id,
     }));
 
   const payoutRows = state.data.payouts
@@ -1555,9 +1574,58 @@ function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
       type: (p.type === "Аванс" || p.type === "advance") ? "Выплата аванс" : (p.type === "Зарплата" || p.type === "salary") ? "Выплата зарплата" : "Выплата вне графика",
       amount: -Number(p.amount || 0),
       note: p.note || "",
+      editable: true,
+      editKind: "payout",
+      editId: p.id,
     }));
 
   return [...shiftRows, ...ndflRow, ...adjustmentRows, ...payoutRows].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+
+function editHistoryEntry(kind, id) {
+  if (kind === "payout") {
+    const item = state.data.payouts.find((p) => p.id === id);
+    if (!item) return;
+    const amount = Number(window.prompt("Новая сумма выплаты", String(item.amount || 0)) || 0);
+    if (amount <= 0) return;
+    const date = String(window.prompt("Новая дата выплаты (YYYY-MM-DD)", item.date || todayISO()) || item.date || todayISO());
+    const note = String(window.prompt("Комментарий", item.note || "") || "").trim();
+    item.amount = amount;
+    item.date = date;
+    item.note = note;
+  }
+
+  if (kind === "adjustment") {
+    const item = state.data.adjustments.find((a) => a.id === id);
+    if (!item) return;
+    const amount = Number(window.prompt("Новая сумма", String(item.amount || 0)) || 0);
+    if (amount <= 0) return;
+    const note = String(window.prompt("Комментарий", item.note || "") || "").trim();
+    if (!note) return;
+    item.amount = amount;
+    item.note = note;
+  }
+
+  persist();
+  renderFinanceTable();
+  renderFinanceHistory();
+}
+
+function cancelHistoryEntry(kind, id) {
+  if (!window.confirm("Отменить выбранное действие в истории?")) return;
+
+  if (kind === "payout") {
+    state.data.payouts = state.data.payouts.filter((p) => p.id !== id);
+  }
+
+  if (kind === "adjustment") {
+    state.data.adjustments = state.data.adjustments.filter((a) => a.id !== id);
+  }
+
+  persist();
+  renderFinanceTable();
+  renderFinanceHistory();
 }
 
 function makeSelect(name, options, selected, extra = "") {
