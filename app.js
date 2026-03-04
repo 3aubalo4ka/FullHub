@@ -966,9 +966,9 @@ function renderMyCabinet() {
   const shiftToday = state.data.shifts.find((s) => s.userId === u.id && s.date === todayISO()) || null;
   const attendanceState = shiftToday
     ? shiftToday.actualStart && shiftToday.actualEnd
-      ? `Смена закрыта: ${shiftToday.actualStart}-${shiftToday.actualEnd}`
+      ? `Смена закрыта: факт ${shiftToday.actualStart}-${shiftToday.actualEnd}, в графике ${shiftToday.start || "-"}-${shiftToday.end || "-"}`
       : shiftToday.actualStart
-        ? `Смена начата в ${shiftToday.actualStart}`
+        ? `Смена начата в ${shiftToday.actualStart}${shiftToday.start && shiftToday.start !== shiftToday.actualStart ? ` (в графике с ${shiftToday.start})` : ""}`
         : "Смена ещё не открыта"
     : "На сегодня смена не назначена";
 
@@ -1128,6 +1128,14 @@ function nowTimeHHMM() {
   return new Date().toTimeString().slice(0, 5);
 }
 
+function maxTimeHHMM(a, b) {
+  return a >= b ? a : b;
+}
+
+function normalizeCheckInTime(timeHHMM) {
+  return maxTimeHHMM(String(timeHHMM || "09:00"), "09:00");
+}
+
 function applyAttendanceMark(userId) {
   const shift = state.data.shifts.find((s) => s.userId === userId && s.date === todayISO());
   if (!shift) return "На сегодня вам не назначена смена.";
@@ -1135,14 +1143,15 @@ function applyAttendanceMark(userId) {
   const now = nowTimeHHMM();
   if (!shift.actualStart) {
     shift.actualStart = now;
-    if (!shift.start) shift.start = now;
+    const effectiveStart = normalizeCheckInTime(now);
+    shift.start = effectiveStart;
     persist();
-    return `Начало смены зафиксировано: ${now}`;
+    return `Начало смены зафиксировано: ${now}${effectiveStart !== now ? ` (в расчет пошло ${effectiveStart})` : ""}`;
   }
 
   if (!shift.actualEnd) {
     shift.actualEnd = now;
-    if (!shift.end) shift.end = now;
+    shift.end = now;
     persist();
     return `Окончание смены зафиксировано: ${now}`;
   }
