@@ -96,9 +96,12 @@
           <div class="card">
             <div class="card-head">
               <h3>Рабочие дни по месяцам</h3>
-              <button id="workdays-edit-toggle" class="btn btn-secondary" type="button" aria-label="Редактировать рабочие дни">⚙️</button>
+              <div class="workdays-head-actions">
+                <button id="workdays-block-toggle" class="btn btn-secondary" type="button">открыть</button>
+                <button id="workdays-edit-toggle" class="btn btn-secondary" type="button" aria-label="Редактировать рабочие дни">⚙️</button>
+              </div>
             </div>
-            <div id="workdays-grid" class="workdays-grid"></div>
+            <div id="workdays-grid" class="workdays-grid hidden"></div>
           </div>
           <div class="table-wrap">
             <table id="finance-table"></table>

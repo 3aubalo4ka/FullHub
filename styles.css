@@ -306,6 +306,12 @@ select:focus {
   display: block;
 }
 
+.workdays-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 
 .workdays-toolbar {
   display: flex;
