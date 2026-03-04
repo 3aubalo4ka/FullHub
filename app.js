@@ -27,9 +27,9 @@ const state = {
   dictionaryDraft: null,
   shiftGroup: "samara",
   shiftViews: {
-    samara_logistics: { month: new Date(), selectedDate: todayISO() },
-    samara_packaging: { month: new Date(), selectedDate: todayISO() },
-    samara_drivers: { month: new Date(), selectedDate: todayISO() },
+    samara_logistics: { month: new Date(), selectedDate: todayISO(), open: false },
+    samara_packaging: { month: new Date(), selectedDate: todayISO(), open: false },
+    samara_drivers: { month: new Date(), selectedDate: todayISO(), open: false },
     tolyatti: { month: new Date(), selectedDate: todayISO(), open: false },
   },
   employeeFilter: { query: "", department: "all", position: "all" },
@@ -476,9 +476,9 @@ function shiftBlocksConfig() {
     return [{ key: "tolyatti", title: "Смены Тольятти", department: "Склад Тольятти", collapsible: true }];
   }
   return [
-    { key: "samara_logistics", title: "Смены отдела логистики", department: "Склад Самара" },
-    { key: "samara_packaging", title: "Смены отдела упаковки", department: "Отдел Упаковки" },
-    { key: "samara_drivers", title: "Смены водителей", department: "Водители" },
+    { key: "samara_logistics", title: "Смены отдела логистики", department: "Склад Самара", collapsible: true },
+    { key: "samara_packaging", title: "Смены отдела упаковки", department: "Отдел Упаковки", collapsible: true },
+    { key: "samara_drivers", title: "Смены водителей", department: "Водители", collapsible: true },
   ];
 }
 
