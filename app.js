@@ -66,6 +66,11 @@ const el = {
   shiftsBlocks: document.getElementById("shifts-blocks"),
   shiftsPageTitle: document.getElementById("shifts-page-title"),
   financeFilter: document.getElementById("finance-filter"),
+  analyticsFilter: document.getElementById("analytics-filter"),
+  analyticsKpis: document.getElementById("analytics-kpis"),
+  analyticsDeptTable: document.getElementById("analytics-dept-table"),
+  analyticsEmployeeTable: document.getElementById("analytics-employee-table"),
+  analyticsExportBtn: document.getElementById("analytics-export"),
   financeTable: document.getElementById("finance-table"),
   financeActionsCard: document.getElementById("finance-actions-card"),
   financeActionsTitle: document.getElementById("finance-actions-title"),
@@ -84,6 +89,7 @@ const el = {
     shifts_samara: document.getElementById("tab-shifts"),
     shifts_tolyatti: document.getElementById("tab-shifts"),
     finance: document.getElementById("tab-finance"),
+    analytics: document.getElementById("tab-analytics"),
   },
 };
 
@@ -211,6 +217,7 @@ function render() {
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
+    renderAnalytics();
   } else {
     el.adminView.classList.add("hidden");
     el.employeeView.classList.remove("hidden");
@@ -836,6 +843,7 @@ function renderFinanceFilter() {
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
+    renderAnalytics();
   };
 }
 
@@ -1036,6 +1044,174 @@ function renderFinanceActions(defaultAction = "payout") {
     renderFinanceHistory();
     renderFinanceActions(selectedAction);
   };
+}
+
+function renderAnalytics() {
+  if (!el.analyticsFilter || !el.analyticsKpis || !el.analyticsDeptTable || !el.analyticsEmployeeTable) return;
+
+  if (!state.data.analyticsFilter) {
+    const month = monthISO(new Date());
+    const bounds = monthBounds(month);
+    state.data.analyticsFilter = { from: bounds.from, to: bounds.to, department: "Все отделы", employeeId: "all" };
+  }
+
+  const f = state.data.analyticsFilter;
+  const departments = ["Все отделы", ...state.data.dictionaries.departments];
+  const employeeOptions = [{ id: "all", label: "Все сотрудники" }, ...state.data.users.filter((u) => u.role === "employee").map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName}` }))];
+
+  el.analyticsFilter.innerHTML = `
+    <label>Период с <input name="from" type="date" value="${f.from}" /></label>
+    <label>Период по <input name="to" type="date" value="${f.to}" /></label>
+    <label>Отдел <select name="department">${departments.map((d) => `<option ${d === f.department ? "selected" : ""}>${d}</option>`).join("")}</select></label>
+    <label>Сотрудник <select name="employeeId">${employeeOptions.map((o) => `<option value="${o.id}" ${o.id === f.employeeId ? "selected" : ""}>${o.label}</option>`).join("")}</select></label>
+    <button class="btn btn-primary" type="submit">Построить</button>
+  `;
+
+  el.analyticsFilter.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(el.analyticsFilter);
+    state.data.analyticsFilter = {
+      from: String(fd.get("from") || todayISO()),
+      to: String(fd.get("to") || todayISO()),
+      department: String(fd.get("department") || "Все отделы"),
+      employeeId: String(fd.get("employeeId") || "all"),
+    };
+    persist();
+    renderAnalytics();
+  };
+
+  const data = buildAnalyticsData(state.data.analyticsFilter);
+
+  el.analyticsKpis.innerHTML = `
+    <div class="kpi-card"><span>Сотрудников в отчете</span><strong>${data.users.length}</strong></div>
+    <div class="kpi-card"><span>Смен</span><strong>${data.totalShifts}</strong></div>
+    <div class="kpi-card"><span>Часов</span><strong>${data.totalHours.toFixed(2)}</strong></div>
+    <div class="kpi-card"><span>Начислено</span><strong>${data.totalGross.toFixed(2)} ₽</strong></div>
+    <div class="kpi-card"><span>Выплачено</span><strong>${data.totalPaid.toFixed(2)} ₽</strong></div>
+    <div class="kpi-card"><span>Премии / Штрафы</span><strong>${data.totalBonuses.toFixed(2)} / ${data.totalFines.toFixed(2)} ₽</strong></div>
+    <div class="kpi-card"><span>Опозданий</span><strong>${data.totalLate}</strong></div>
+    <div class="kpi-card"><span>Закрытых смен по QR</span><strong>${data.closedByQr}</strong></div>
+  `;
+
+  el.analyticsDeptTable.innerHTML = `<thead><tr><th>Отдел</th><th>Сотрудников</th><th>Смен</th><th>Часов</th><th>Начислено</th><th>Выплачено</th><th>Опозданий</th></tr></thead><tbody>${data.byDepartment
+    .map((r) => `<tr><td>${r.department}</td><td>${r.users}</td><td>${r.shifts}</td><td>${r.hours.toFixed(2)}</td><td>${r.gross.toFixed(2)} ₽</td><td>${r.paid.toFixed(2)} ₽</td><td>${r.late}</td></tr>`)
+    .join("")}</tbody>`;
+
+  el.analyticsEmployeeTable.innerHTML = `<thead><tr><th>Фамилия</th><th>Имя</th><th>Отдел</th><th>Смен</th><th>Часов</th><th>Начислено</th><th>Выплачено</th><th>Остаток</th><th>Опозданий</th></tr></thead><tbody>${data.byEmployee
+    .map((r) => `<tr><td>${r.lastName}</td><td>${r.firstName}</td><td>${r.department}</td><td>${r.shifts}</td><td>${r.hours.toFixed(2)}</td><td>${r.gross.toFixed(2)} ₽</td><td>${r.paid.toFixed(2)} ₽</td><td>${Math.max(0, r.gross + r.bonuses - r.fines - r.paid).toFixed(2)} ₽</td><td>${r.late}</td></tr>`)
+    .join("")}</tbody>`;
+
+  if (el.analyticsExportBtn) {
+    el.analyticsExportBtn.onclick = () => exportAnalyticsReport(data, state.data.analyticsFilter);
+  }
+}
+
+function buildAnalyticsData(filter) {
+  const from = filter.from;
+  const to = filter.to;
+  const users = state.data.users
+    .filter((u) => u.role === "employee")
+    .filter((u) => filter.department === "Все отделы" || u.department === filter.department)
+    .filter((u) => filter.employeeId === "all" || u.id === filter.employeeId);
+
+  const inRange = (iso) => iso >= from && iso <= to;
+  const byEmployee = users.map((u) => {
+    const shifts = state.data.shifts.filter((s) => s.userId === u.id && inRange(s.date));
+    const hours = shifts.reduce((acc, s) => acc + hoursBetween(s.start, s.end), 0);
+    const gross = shifts.reduce((acc, s) => acc + calculateShiftPay(s, u, s.date.slice(0, 7)), 0);
+    const bonuses = state.data.adjustments
+      .filter((a) => a.userId === u.id)
+      .filter((a) => {
+        const d = (a.createdAt || `${a.month || monthISO(new Date())}-01`).slice(0, 10);
+        return inRange(d) && a.kind === "bonus";
+      })
+      .reduce((acc, a) => acc + Number(a.amount || 0), 0);
+    const fines = state.data.adjustments
+      .filter((a) => a.userId === u.id)
+      .filter((a) => {
+        const d = (a.createdAt || `${a.month || monthISO(new Date())}-01`).slice(0, 10);
+        return inRange(d) && a.kind === "fine";
+      })
+      .reduce((acc, a) => acc + Number(a.amount || 0), 0);
+    const paid = state.data.payouts
+      .filter((p) => p.userId === u.id)
+      .filter((p) => inRange((p.date || `${p.month || monthISO(new Date())}-01`).slice(0, 10)))
+      .reduce((acc, p) => acc + Number(p.amount || 0), 0);
+
+    const late = shifts.filter((s) => s.actualStart && s.actualStart > "09:00").length;
+    const closedByQr = shifts.filter((s) => s.actualStart && s.actualEnd).length;
+
+    return {
+      userId: u.id,
+      lastName: u.lastName,
+      firstName: u.firstName,
+      department: u.department,
+      shifts: shifts.length,
+      hours,
+      gross,
+      paid,
+      bonuses,
+      fines,
+      late,
+      closedByQr,
+    };
+  });
+
+  const deptMap = new Map();
+  byEmployee.forEach((r) => {
+    if (!deptMap.has(r.department)) deptMap.set(r.department, { department: r.department, users: 0, shifts: 0, hours: 0, gross: 0, paid: 0, late: 0 });
+    const d = deptMap.get(r.department);
+    d.users += 1;
+    d.shifts += r.shifts;
+    d.hours += r.hours;
+    d.gross += r.gross;
+    d.paid += r.paid;
+    d.late += r.late;
+  });
+
+  return {
+    users,
+    byEmployee: byEmployee.sort((a, b) => b.gross - a.gross),
+    byDepartment: [...deptMap.values()].sort((a, b) => b.gross - a.gross),
+    totalShifts: byEmployee.reduce((a, x) => a + x.shifts, 0),
+    totalHours: byEmployee.reduce((a, x) => a + x.hours, 0),
+    totalGross: byEmployee.reduce((a, x) => a + x.gross, 0),
+    totalPaid: byEmployee.reduce((a, x) => a + x.paid, 0),
+    totalBonuses: byEmployee.reduce((a, x) => a + x.bonuses, 0),
+    totalFines: byEmployee.reduce((a, x) => a + x.fines, 0),
+    totalLate: byEmployee.reduce((a, x) => a + x.late, 0),
+    closedByQr: byEmployee.reduce((a, x) => a + x.closedByQr, 0),
+  };
+}
+
+function exportAnalyticsReport(data, filter) {
+  const title = `Аналитика ${filter.from} - ${filter.to}`;
+  const deptRows = data.byDepartment
+    .map((r) => `<tr><td>${r.department}</td><td>${r.users}</td><td>${r.shifts}</td><td>${r.hours.toFixed(2)}</td><td>${r.gross.toFixed(2)}</td><td>${r.paid.toFixed(2)}</td><td>${r.late}</td></tr>`)
+    .join("");
+  const empRows = data.byEmployee
+    .map((r) => `<tr><td>${r.lastName}</td><td>${r.firstName}</td><td>${r.department}</td><td>${r.shifts}</td><td>${r.hours.toFixed(2)}</td><td>${r.gross.toFixed(2)}</td><td>${r.paid.toFixed(2)}</td><td>${Math.max(0, r.gross + r.bonuses - r.fines - r.paid).toFixed(2)}</td><td>${r.late}</td></tr>`)
+    .join("");
+
+  const html = `
+    <html><head><meta charset="utf-8" /></head><body>
+      <h2>${title}</h2>
+      <p>Фильтр: отдел — ${filter.department}, сотрудник — ${filter.employeeId}</p>
+      <h3>Сводка по отделам</h3>
+      <table border="1"><tr><th>Отдел</th><th>Сотрудников</th><th>Смен</th><th>Часов</th><th>Начислено</th><th>Выплачено</th><th>Опозданий</th></tr>${deptRows}</table>
+      <h3>Сводка по сотрудникам</h3>
+      <table border="1"><tr><th>Фамилия</th><th>Имя</th><th>Отдел</th><th>Смен</th><th>Часов</th><th>Начислено</th><th>Выплачено</th><th>Остаток</th><th>Опозданий</th></tr>${empRows}</table>
+    </body></html>`;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fullhub-analytics-${filter.from}-${filter.to}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
@@ -1411,6 +1587,12 @@ function loadData() {
       department: "Все отделы",
       employeeId: "all",
     },
+    analyticsFilter: {
+      from: monthBounds(monthISO(new Date())).from,
+      to: monthBounds(monthISO(new Date())).to,
+      department: "Все отделы",
+      employeeId: "all",
+    },
   };
 
   if (!raw) return base;
@@ -1441,6 +1623,10 @@ function loadData() {
 
   if (!data.financeFilter?.month) {
     data.financeFilter = { month: monthISO(new Date()), from: monthBounds(monthISO(new Date())).from, to: monthBounds(monthISO(new Date())).to, department: "Все отделы", employeeId: "all" };
+  }
+
+  if (!data.analyticsFilter?.from) {
+    data.analyticsFilter = { from: monthBounds(monthISO(new Date())).from, to: monthBounds(monthISO(new Date())).to, department: "Все отделы", employeeId: "all" };
   }
 
   return data;

@@ -44,6 +44,7 @@
           <button class="tab" data-tab="shifts_samara">Смены Самара</button>
           <button class="tab" data-tab="shifts_tolyatti">Смены Тольятти</button>
           <button class="tab" data-tab="finance">Финансы</button>
+          <button class="tab" data-tab="analytics">Аналитика</button>
         </nav>
 
         <section id="tab-employees" class="tab-panel">
@@ -88,6 +89,24 @@
         <section id="tab-shifts" class="tab-panel hidden">
           <h2 id="shifts-page-title">Смены Самара</h2>
           <div id="shifts-blocks"></div>
+        </section>
+
+
+        <section id="tab-analytics" class="tab-panel hidden">
+          <h2>Аналитика</h2>
+          <form id="analytics-filter" class="inline-form"></form>
+          <div class="employee-kpi-grid" id="analytics-kpis"></div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Сводка по отделам</h3>
+              <button id="analytics-export" class="btn btn-primary" type="button">Сформировать отчет в Excel</button>
+            </div>
+            <div class="table-wrap"><table id="analytics-dept-table"></table></div>
+          </div>
+          <div class="card">
+            <h3>Сводка по сотрудникам</h3>
+            <div class="table-wrap"><table id="analytics-employee-table"></table></div>
+          </div>
         </section>
 
         <section id="tab-finance" class="tab-panel hidden">
