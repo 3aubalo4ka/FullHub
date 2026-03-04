@@ -1563,14 +1563,14 @@ function shiftMultiplier(shift) {
 }
 
 function calculateShiftPay(shift, user, month) {
-  const k = shiftMultiplier(shift);
-  if (user.payForm === "Сдельная") return Number(shift.pieceAmount || 0) * k;
+  if (user.payForm === "Сдельная") return Number(shift.pieceAmount || 0);
   if (user.payForm === "Часовая") {
-    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0) * k;
+    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0);
   }
   const workDays = Number(state.data.workDaysByMonth[month] || 0);
   if (workDays <= 0) return 0;
   const hourlyRate = Number(user.monthlySalary || 0) / workDays / SHIFT_HOURS_STANDARD;
+  const k = shiftMultiplier(shift);
   return hoursBetween(shift.start, shift.end) * hourlyRate * k;
 }
 
