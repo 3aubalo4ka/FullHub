@@ -26,6 +26,8 @@ const state = {
   financeSelectedUserIds: [],
   financeActionMode: "payout",
   workDaysEditMode: false,
+  workDaysYear: new Date().getFullYear(),
+  workDaysPanelOpen: false,
   dictEditMode: false,
   dictionaryDraft: null,
   shiftGroup: "samara",
@@ -708,18 +710,46 @@ function renderWorkDaysByMonthCard() {
     el.workDaysEditToggle.title = state.workDaysEditMode ? "Сохранить рабочие дни" : "Редактировать рабочие дни";
   }
 
-  const options = buildMonthOptions(12);
-  el.workDaysGrid.innerHTML = options
-    .map((m) => {
-      const val = Number(state.data.workDaysByMonth[m.value] || 0);
-      if (!state.workDaysEditMode) {
-        return `<div class="workday-item"><span>${m.label}</span><strong>${val || "—"}</strong></div>`;
-      }
-      return `<label class="workday-item"><span>${m.label}</span><input data-workdays-month="${m.value}" type="number" min="1" max="31" value="${val || ""}" placeholder="—" /></label>`;
-    })
-    .join("");
+  const year = Number(state.workDaysYear || new Date().getFullYear());
+  const years = Array.from({ length: 5 }, (_, i) => year - 2 + i);
+  const monthItems = Array.from({ length: 12 }, (_, i) => {
+    const month = String(i + 1).padStart(2, "0");
+    const iso = `${year}-${month}`;
+    const label = new Date(year, i, 1).toLocaleDateString("ru-RU", { month: "long" });
+    const val = Number(state.data.workDaysByMonth[iso] || 0);
+    if (!state.workDaysEditMode) {
+      return `<div class="workday-item"><span>${label}</span><strong>${val || "—"}</strong></div>`;
+    }
+    return `<label class="workday-item"><span>${label}</span><input data-workdays-month="${iso}" type="number" min="1" max="31" value="${val || ""}" placeholder="—" /></label>`;
+  }).join("");
 
-  if (!state.workDaysEditMode) return;
+  el.workDaysGrid.innerHTML = `
+    <div class="workdays-toolbar">
+      <label>Год
+        <select id="workdays-year-select">${years.map((y) => `<option value="${y}" ${y === year ? "selected" : ""}>${y}</option>`).join("")}</select>
+      </label>
+      <button type="button" class="btn btn-secondary" id="workdays-expand-btn">${state.workDaysPanelOpen ? "Скрыть месяцы" : "Показать месяцы"}</button>
+    </div>
+    ${state.workDaysPanelOpen ? `<div class="workdays-grid-inner">${monthItems}</div>` : `<p class="dict-hint">Выберите год и нажмите «Показать месяцы».</p>`}
+  `;
+
+  const yearSelect = document.getElementById("workdays-year-select");
+  if (yearSelect) {
+    yearSelect.onchange = () => {
+      state.workDaysYear = Number(yearSelect.value || new Date().getFullYear());
+      renderWorkDaysByMonthCard();
+    };
+  }
+
+  const expandBtn = document.getElementById("workdays-expand-btn");
+  if (expandBtn) {
+    expandBtn.onclick = () => {
+      state.workDaysPanelOpen = !state.workDaysPanelOpen;
+      renderWorkDaysByMonthCard();
+    };
+  }
+
+  if (!state.workDaysEditMode || !state.workDaysPanelOpen) return;
   el.workDaysGrid.querySelectorAll("[data-workdays-month]").forEach((input) => {
     input.onchange = () => {
       const m = input.dataset.workdaysMonth;

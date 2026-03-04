@@ -267,14 +267,15 @@ select:focus {
 
 
 #employees-table {
-  table-layout: fixed;
-  min-width: 1280px;
+  table-layout: auto;
+  min-width: 1180px;
 }
 
 #employees-table td input,
 #employees-table td select {
-  width: 100%;
-  padding: 0.42rem 0.5rem;
+  width: auto;
+  max-width: 100%;
+  padding: 0.4rem 0.48rem;
   box-sizing: border-box;
 }
 
@@ -301,6 +302,19 @@ select:focus {
 }
 
 .workdays-grid {
+  display: block;
+}
+
+
+.workdays-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: end;
+  margin-bottom: 0.6rem;
+}
+
+.workdays-grid-inner {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 0.55rem;
