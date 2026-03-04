@@ -251,32 +251,33 @@ select:focus {
 }
 
 #employees-table th:nth-child(1),
-#employees-table td:nth-child(1) { width: 8%; min-width: 95px; }
+#employees-table td:nth-child(1) { width: 6%; min-width: 78px; }
 #employees-table th:nth-child(2),
-#employees-table td:nth-child(2) { width: 8%; min-width: 90px; }
+#employees-table td:nth-child(2) { width: 6%; min-width: 74px; }
 #employees-table th:nth-child(3),
-#employees-table td:nth-child(3) { width: 8%; min-width: 90px; }
+#employees-table td:nth-child(3) { width: 6%; min-width: 78px; }
 #employees-table th:nth-child(7),
-#employees-table td:nth-child(7) { width: 4%; min-width: 65px; }
+#employees-table td:nth-child(7) { width: 3.5%; min-width: 52px; }
 #employees-table th:nth-child(8),
-#employees-table td:nth-child(8) { width: 5%; min-width: 75px; }
+#employees-table td:nth-child(8) { width: 4%; min-width: 62px; }
 #employees-table th:nth-child(11),
-#employees-table td:nth-child(11) { width: 7%; min-width: 100px; }
+#employees-table td:nth-child(11) { width: 6%; min-width: 84px; }
 #employees-table th:nth-child(12),
-#employees-table td:nth-child(12) { width: 5%; min-width: 80px; }
-
+#employees-table td:nth-child(12) { width: 4%; min-width: 62px; }
 
 #employees-table {
-  table-layout: auto;
-  min-width: 1180px;
+  table-layout: fixed;
+  min-width: 1000px;
 }
 
 #employees-table td input,
 #employees-table td select {
-  width: auto;
+  width: 100%;
   max-width: 100%;
-  padding: 0.4rem 0.48rem;
+  min-width: 0;
+  padding: 0.32rem 0.38rem;
   box-sizing: border-box;
+  font-size: 0.82rem;
 }
 
 .btn-mini {
