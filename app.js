@@ -833,7 +833,7 @@ function renderFinanceTable() {
   </tr></thead><tbody>${rows
     .map(({ user, metrics }) => {
       const checked = state.financeSelectedUserIds.includes(user.id) ? "checked" : "";
-      return `<tr data-user-id="${user.id}">
+      return `<tr data-user-id="${user.id}" class="${checked ? "is-selected" : ""}">
         <td><input type="checkbox" data-fin-check="${user.id}" ${checked} /></td>
         <td>${user.lastName}</td>
         <td>${user.firstName}</td>
@@ -865,6 +865,7 @@ function renderFinanceTable() {
   }
 
   el.financeTable.querySelectorAll("[data-fin-check]").forEach((box) => {
+    box.ondblclick = (e) => e.stopPropagation();
     box.onchange = () => {
       const id = box.dataset.finCheck;
       if (box.checked) {
@@ -877,10 +878,15 @@ function renderFinanceTable() {
   });
 
   el.financeTable.querySelectorAll("tbody tr").forEach((tr) => {
-    tr.ondblclick = () => {
+    const openHistory = () => {
       state.financeHistoryUserId = tr.dataset.userId;
       renderFinanceHistory();
     };
+    tr.ondblclick = openHistory;
+    tr.querySelectorAll("td").forEach((cell) => {
+      if (cell.querySelector('[data-fin-check]')) return;
+      cell.ondblclick = openHistory;
+    });
   });
 
   if (!state.financeHistoryUserId && users[0]) state.financeHistoryUserId = users[0].id;

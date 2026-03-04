@@ -265,6 +265,19 @@ select:focus {
 #employees-table th:nth-child(12),
 #employees-table td:nth-child(12) { width: 5%; min-width: 80px; }
 
+
+#employees-table {
+  table-layout: fixed;
+  min-width: 1280px;
+}
+
+#employees-table td input,
+#employees-table td select {
+  width: 100%;
+  padding: 0.42rem 0.5rem;
+  box-sizing: border-box;
+}
+
 .btn-mini {
   padding: 0.25rem 0.5rem;
   font-size: 0.78rem;
@@ -279,8 +292,12 @@ select:focus {
   cursor: pointer;
 }
 
-.finance-table tbody tr:hover {
-  background: #f8fbff;
+.finance-table tbody tr:hover td {
+  background: #eef6ff;
+}
+
+.finance-table tbody tr.is-selected td {
+  background: #e0edff;
 }
 
 .workdays-grid {
