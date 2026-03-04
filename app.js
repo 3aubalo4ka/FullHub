@@ -26,6 +26,12 @@ const state = {
   dictEditMode: false,
   dictionaryDraft: null,
   shiftGroup: "samara",
+  shiftViews: {
+    samara_logistics: { month: new Date(), selectedDate: todayISO() },
+    samara_packaging: { month: new Date(), selectedDate: todayISO() },
+    samara_drivers: { month: new Date(), selectedDate: todayISO() },
+    tolyatti: { month: new Date(), selectedDate: todayISO(), open: false },
+  },
   employeeFilter: { query: "", department: "all", position: "all" },
 };
 
@@ -52,11 +58,7 @@ const el = {
   dictControls: document.getElementById("dictionary-controls"),
   dictEditToggle: document.getElementById("dict-edit-toggle"),
   employeesTable: document.getElementById("employees-table"),
-  calendarTitle: document.getElementById("calendar-title"),
-  calendar: document.getElementById("calendar"),
-  shiftEditorTitle: document.getElementById("shift-editor-title"),
-  shiftForm: document.getElementById("shift-form"),
-  dayShiftsTable: document.getElementById("day-shifts-table"),
+  shiftsBlocks: document.getElementById("shifts-blocks"),
   shiftsPageTitle: document.getElementById("shifts-page-title"),
   financeFilter: document.getElementById("finance-filter"),
   financeTable: document.getElementById("finance-table"),
@@ -84,14 +86,6 @@ function init() {
   wireTabs();
   wireDictEditor();
   wireEmployeeCreateToggle();
-  document.getElementById("prev-month").onclick = () => {
-    state.viewMonth.setMonth(state.viewMonth.getMonth() - 1);
-    renderCalendar();
-  };
-  document.getElementById("next-month").onclick = () => {
-    state.viewMonth.setMonth(state.viewMonth.getMonth() + 1);
-    renderCalendar();
-  };
   render();
 }
 
@@ -162,9 +156,7 @@ function wireTabs() {
       el.tabPanels[target].classList.remove("hidden");
 
       if (target.startsWith("shifts")) {
-        renderCalendar();
-        renderShiftForm();
-        renderDayShifts();
+        renderShiftBlocks();
       }
     };
   });
@@ -187,9 +179,7 @@ function render() {
     renderBirthdayReminder();
     renderAttendanceQrCard();
     renderEmployeesTable();
-    renderCalendar();
-    renderShiftForm();
-    renderDayShifts();
+    renderShiftBlocks();
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
@@ -481,25 +471,81 @@ function renderEmployeesTable() {
   });
 }
 
-function isUserInCurrentShiftGroup(user) {
-  if (!user || user.role !== "employee") return false;
-  if (state.shiftGroup === "tolyatti") return user.department === "Склад Тольятти";
-  return ["Отдел Упаковки", "Склад Самара", "Водители"].includes(user.department);
+function shiftBlocksConfig() {
+  if (state.shiftGroup === "tolyatti") {
+    return [{ key: "tolyatti", title: "Смены Тольятти", department: "Склад Тольятти", collapsible: true }];
+  }
+  return [
+    { key: "samara_logistics", title: "Смены отдела логистики", department: "Склад Самара" },
+    { key: "samara_packaging", title: "Смены отдела упаковки", department: "Отдел Упаковки" },
+    { key: "samara_drivers", title: "Смены водителей", department: "Водители" },
+  ];
 }
 
-function renderCalendar() {
-  const year = state.viewMonth.getFullYear();
-  const month = state.viewMonth.getMonth();
-  el.calendarTitle.textContent = new Date(year, month, 1).toLocaleDateString("ru-RU", {
-    month: "long",
-    year: "numeric",
+function getEmployeesByDepartment(department) {
+  return state.data.users.filter((u) => u.role === "employee" && u.department === department);
+}
+
+function renderShiftBlocks() {
+  if (!el.shiftsBlocks) return;
+  const blocks = shiftBlocksConfig();
+  el.shiftsBlocks.innerHTML = blocks
+    .map((b) => {
+      const view = state.shiftViews[b.key] || { month: new Date(), selectedDate: todayISO(), open: false };
+      const monthLabel = new Date(view.month.getFullYear(), view.month.getMonth(), 1).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+      const isOpen = !b.collapsible || !!view.open;
+      return `<div class="card shift-block" data-shift-block="${b.key}">
+        <div class="card-head">
+          <h3>${b.title}</h3>
+          <div class="shift-block-actions">
+            ${b.collapsible ? `<button class="btn btn-secondary" type="button" data-action="toggle" data-key="${b.key}">${isOpen ? "скрыть" : "открыть"}</button>` : ""}
+            <button class="btn btn-secondary" type="button" data-action="prev" data-key="${b.key}" ${!isOpen ? "disabled" : ""}>←</button>
+            <strong>${monthLabel}</strong>
+            <button class="btn btn-secondary" type="button" data-action="next" data-key="${b.key}" ${!isOpen ? "disabled" : ""}>→</button>
+          </div>
+        </div>
+        <p class="dict-hint">В этом блоке доступны только сотрудники отдела: <b>${b.department}</b>.</p>
+        ${isOpen ? `<div class="calendar" data-calendar-key="${b.key}"></div>
+        <h4>Смена на дату <span data-selected-date="${b.key}">${view.selectedDate}</span></h4>
+        <form class="grid-form" data-shift-form="${b.key}"></form>
+        <div class="table-wrap"><table data-day-table="${b.key}"></table></div>` : ""}
+      </div>`;
+    })
+    .join("");
+
+  el.shiftsBlocks.querySelectorAll("[data-action]").forEach((btn) => {
+    btn.onclick = () => {
+      const key = btn.dataset.key;
+      const action = btn.dataset.action;
+      const view = state.shiftViews[key];
+      if (!view) return;
+      if (action === "toggle") view.open = !view.open;
+      if (action === "prev") view.month.setMonth(view.month.getMonth() - 1);
+      if (action === "next") view.month.setMonth(view.month.getMonth() + 1);
+      renderShiftBlocks();
+    };
   });
 
+  blocks.forEach((b) => {
+    const view = state.shiftViews[b.key];
+    if (b.collapsible && !view.open) return;
+    renderCalendarForBlock(b);
+    renderShiftFormForBlock(b);
+    renderDayShiftsForBlock(b);
+  });
+}
+
+function renderCalendarForBlock(block) {
+  const view = state.shiftViews[block.key];
+  const year = view.month.getFullYear();
+  const month = view.month.getMonth();
   const firstDay = new Date(year, month, 1);
   const startOffset = (firstDay.getDay() + 6) % 7;
   const startDate = new Date(year, month, 1 - startOffset);
+  const cal = el.shiftsBlocks.querySelector(`[data-calendar-key="${block.key}"]`);
+  if (!cal) return;
+  cal.innerHTML = "";
 
-  el.calendar.innerHTML = "";
   for (let i = 0; i < 42; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
@@ -508,10 +554,15 @@ function renderCalendar() {
     day.type = "button";
     day.className = "day";
     if (d.getMonth() !== month) day.classList.add("muted");
-    if (iso === state.selectedDate) day.classList.add("selected");
+    if (iso === view.selectedDate) day.classList.add("selected");
     day.innerHTML = `<div class="day-num">${d.getDate()}</div>`;
 
-    const shifts = state.data.shifts.filter((s) => s.date === iso && isUserInCurrentShiftGroup(state.data.users.find((u) => u.id === s.userId)));
+    const shifts = state.data.shifts.filter((s) => {
+      if (s.date !== iso) return false;
+      const u = state.data.users.find((x) => x.id === s.userId);
+      return u && u.department === block.department;
+    });
+
     shifts.forEach((s) => {
       const user = state.data.users.find((u) => u.id === s.userId);
       if (!user) return;
@@ -521,24 +572,26 @@ function renderCalendar() {
       chip.textContent = `${user.lastName} ${user.payForm === "Сдельная" ? "(сделка)" : `${s.start}-${s.end}`}`;
       chip.onclick = (e) => {
         e.stopPropagation();
-        state.selectedDate = iso;
-        render();
+        view.selectedDate = iso;
+        renderShiftBlocks();
       };
       day.appendChild(chip);
     });
 
     day.onclick = () => {
-      state.selectedDate = iso;
-      render();
+      view.selectedDate = iso;
+      renderShiftBlocks();
     };
-    el.calendar.appendChild(day);
+    cal.appendChild(day);
   }
 }
 
-function renderShiftForm() {
-  const emps = state.data.users.filter((u) => isUserInCurrentShiftGroup(u));
-  el.shiftEditorTitle.textContent = `Смены на ${state.selectedDate}`;
-  el.shiftForm.innerHTML = `
+function renderShiftFormForBlock(block) {
+  const view = state.shiftViews[block.key];
+  const form = el.shiftsBlocks.querySelector(`[data-shift-form="${block.key}"]`);
+  if (!form) return;
+  const emps = getEmployeesByDepartment(block.department);
+  form.innerHTML = `
     <label>Сотрудник<select name="userId">${emps
       .map((u) => `<option value="${u.id}">${u.lastName} ${u.firstName} (${u.payForm})</option>`)
       .join("")}</select></label>
@@ -548,10 +601,10 @@ function renderShiftForm() {
     <button class="btn btn-primary" type="submit">Добавить смену</button>
   `;
 
-  const userSel = el.shiftForm.querySelector('select[name="userId"]');
-  const start = el.shiftForm.querySelector('input[name="start"]');
-  const end = el.shiftForm.querySelector('input[name="end"]');
-  const piece = el.shiftForm.querySelector('input[name="pieceAmount"]');
+  const userSel = form.querySelector('select[name="userId"]');
+  const start = form.querySelector('input[name="start"]');
+  const end = form.querySelector('input[name="end"]');
+  const piece = form.querySelector('input[name="pieceAmount"]');
   const sync = () => {
     const u = state.data.users.find((x) => x.id === userSel.value);
     const isPiece = u?.payForm === "Сдельная";
@@ -562,30 +615,40 @@ function renderShiftForm() {
   userSel.onchange = sync;
   sync();
 
-  el.shiftForm.onsubmit = (e) => {
+  form.onsubmit = (e) => {
     e.preventDefault();
-    const fd = new FormData(el.shiftForm);
+    const fd = new FormData(form);
     const user = state.data.users.find((x) => x.id === fd.get("userId"));
-    if (!user) return;
+    if (!user || user.department !== block.department) return;
 
-    const shift = {
+    state.data.shifts.push({
       id: crypto.randomUUID(),
-      date: state.selectedDate,
+      date: view.selectedDate,
       userId: String(fd.get("userId") || ""),
       start: user.payForm === "Сдельная" ? "" : String(fd.get("start") || ""),
       end: user.payForm === "Сдельная" ? "" : String(fd.get("end") || ""),
       pieceAmount: user.payForm === "Сдельная" ? Number(fd.get("pieceAmount") || 0) : 0,
-    };
+      actualStart: "",
+      actualEnd: "",
+    });
 
-    state.data.shifts.push(shift);
     persist();
-    render();
+    renderShiftBlocks();
   };
 }
 
-function renderDayShifts() {
-  const rows = state.data.shifts.filter((s) => s.date === state.selectedDate && isUserInCurrentShiftGroup(state.data.users.find((u) => u.id === s.userId)));
-  el.dayShiftsTable.innerHTML = `<thead><tr><th>Сотрудник</th><th>Тип</th><th>Начало</th><th>Конец</th><th>Сделка</th><th>Действия</th></tr></thead><tbody>${rows
+function renderDayShiftsForBlock(block) {
+  const view = state.shiftViews[block.key];
+  const table = el.shiftsBlocks.querySelector(`[data-day-table="${block.key}"]`);
+  if (!table) return;
+
+  const rows = state.data.shifts.filter((s) => {
+    if (s.date !== view.selectedDate) return false;
+    const u = state.data.users.find((x) => x.id === s.userId);
+    return u && u.department === block.department;
+  });
+
+  table.innerHTML = `<thead><tr><th>Сотрудник</th><th>Тип</th><th>Начало</th><th>Конец</th><th>Сделка</th><th>Действия</th></tr></thead><tbody>${rows
     .map((s) => {
       const u = state.data.users.find((x) => x.id === s.userId);
       if (!u) return "";
@@ -594,7 +657,7 @@ function renderDayShifts() {
     })
     .join("")}</tbody>`;
 
-  el.dayShiftsTable.querySelectorAll(".save-shift").forEach((btn) => {
+  table.querySelectorAll(".save-shift").forEach((btn) => {
     btn.onclick = () => {
       const tr = btn.closest("tr");
       const s = state.data.shifts.find((x) => x.id === tr.dataset.id);
@@ -606,16 +669,16 @@ function renderDayShifts() {
       if (end && !end.disabled) s.end = String(end.value || "18:00");
       if (piece && !piece.disabled) s.pieceAmount = Number(piece.value || 0);
       persist();
-      render();
+      renderShiftBlocks();
     };
   });
 
-  el.dayShiftsTable.querySelectorAll(".del-shift").forEach((btn) => {
+  table.querySelectorAll(".del-shift").forEach((btn) => {
     btn.onclick = () => {
       const id = btn.closest("tr").dataset.id;
       state.data.shifts = state.data.shifts.filter((s) => s.id !== id);
       persist();
-      render();
+      renderShiftBlocks();
     };
   });
 }

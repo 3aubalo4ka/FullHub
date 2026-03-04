@@ -301,6 +301,20 @@ select:focus {
   margin: 0.6rem 0;
 }
 
+.shift-block {
+  margin-bottom: 1rem;
+}
+
+.shift-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shift-block h4 {
+  margin: 0.9rem 0 0.45rem;
+}
+
 .table-wrap {
   overflow: auto;
   max-width: 100%;
