@@ -25,6 +25,7 @@ const state = {
   financeActionUserId: null,
   financeSelectedUserIds: [],
   financeActionMode: "payout",
+  openShiftsSelection: [],
   workDaysEditMode: false,
   workDaysYear: new Date().getFullYear(),
   workDaysPanelOpen: false,
@@ -75,6 +76,10 @@ const el = {
   financeActionsCard: document.getElementById("finance-actions-card"),
   financeActionsTitle: document.getElementById("finance-actions-title"),
   financeActionsForm: document.getElementById("finance-actions-form"),
+  openShiftsFilter: document.getElementById("open-shifts-filter"),
+  openShiftsTable: document.getElementById("open-shifts-table"),
+  openShiftsOpenBtn: document.getElementById("open-shifts-open-btn"),
+  openShiftsCloseBtn: document.getElementById("open-shifts-close-btn"),
   workDaysBlockToggle: document.getElementById("workdays-block-toggle"),
   workDaysEditToggle: document.getElementById("workdays-edit-toggle"),
   workDaysGrid: document.getElementById("workdays-grid"),
@@ -217,6 +222,7 @@ function render() {
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
+    renderOpenShiftsAdmin();
     renderAnalytics();
   } else {
     el.adminView.classList.add("hidden");
@@ -843,6 +849,7 @@ function renderFinanceFilter() {
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
+    renderOpenShiftsAdmin();
     renderAnalytics();
   };
 }
@@ -1044,6 +1051,119 @@ function renderFinanceActions(defaultAction = "payout") {
     renderFinanceHistory();
     renderFinanceActions(selectedAction);
   };
+}
+
+function getOpenShiftRows(filter) {
+  const mode = filter.mode || "day";
+  const from = mode === "day" ? filter.day : (filter.from || filter.day);
+  const to = mode === "day" ? filter.day : (filter.to || filter.day);
+  return state.data.shifts
+    .filter((s) => s.date >= from && s.date <= to)
+    .map((s) => ({ s, user: state.data.users.find((u) => u.id === s.userId) }))
+    .filter((x) => x.user && x.user.role === "employee")
+    .sort((a, b) => (a.s.date === b.s.date ? xName(a.user).localeCompare(xName(b.user)) : a.s.date.localeCompare(b.s.date)));
+}
+
+function xName(u) {
+  return `${u.lastName} ${u.firstName} ${u.middleName || ""}`.trim();
+}
+
+function renderOpenShiftsAdmin() {
+  if (!el.openShiftsFilter || !el.openShiftsTable) return;
+  if (!state.data.openShiftsFilter) {
+    state.data.openShiftsFilter = { mode: "day", day: todayISO(), from: todayISO(), to: todayISO() };
+  }
+  const f = state.data.openShiftsFilter;
+
+  el.openShiftsFilter.innerHTML = `
+    <label>Режим
+      <select name="mode">
+        <option value="day" ${f.mode === "day" ? "selected" : ""}>Выбранный день</option>
+        <option value="period" ${f.mode === "period" ? "selected" : ""}>Период</option>
+      </select>
+    </label>
+    <label>День <input type="date" name="day" value="${f.day || todayISO()}" /></label>
+    <label>С <input type="date" name="from" value="${f.from || todayISO()}" /></label>
+    <label>По <input type="date" name="to" value="${f.to || todayISO()}" /></label>
+    <button class="btn btn-secondary" type="submit">Показать</button>
+  `;
+
+  const syncMode = () => {
+    const mode = el.openShiftsFilter.querySelector('select[name="mode"]').value;
+    const day = el.openShiftsFilter.querySelector('input[name="day"]');
+    const from = el.openShiftsFilter.querySelector('input[name="from"]');
+    const to = el.openShiftsFilter.querySelector('input[name="to"]');
+    day.disabled = mode !== "day";
+    from.disabled = mode !== "period";
+    to.disabled = mode !== "period";
+  };
+  el.openShiftsFilter.querySelector('select[name="mode"]').onchange = syncMode;
+  syncMode();
+
+  el.openShiftsFilter.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(el.openShiftsFilter);
+    state.data.openShiftsFilter = {
+      mode: String(fd.get("mode") || "day"),
+      day: String(fd.get("day") || todayISO()),
+      from: String(fd.get("from") || todayISO()),
+      to: String(fd.get("to") || todayISO()),
+    };
+    state.openShiftsSelection = [];
+    persist();
+    renderOpenShiftsAdmin();
+  };
+
+  const rows = getOpenShiftRows(state.data.openShiftsFilter);
+  state.openShiftsSelection = state.openShiftsSelection.filter((id) => rows.some((r) => r.s.id === id));
+
+  el.openShiftsTable.innerHTML = `<thead><tr><th></th><th>Дата</th><th>Сотрудник</th><th>Отдел</th><th>План</th><th>Факт</th><th>Статус</th></tr></thead><tbody>${rows
+    .map(({ s, user }) => {
+      const checked = state.openShiftsSelection.includes(s.id) ? "checked" : "";
+      const status = s.actualStart && s.actualEnd ? "Закрыта" : s.actualStart ? "Открыта" : "Не открыта";
+      return `<tr><td><input type="checkbox" data-open-shift="${s.id}" ${checked}/></td><td>${s.date}</td><td>${xName(user)}</td><td>${user.department}</td><td>${s.start || "-"} - ${s.end || "-"}</td><td>${s.actualStart || "-"} - ${s.actualEnd || "-"}</td><td>${status}</td></tr>`;
+    })
+    .join("")}</tbody>`;
+
+  el.openShiftsTable.querySelectorAll('[data-open-shift]').forEach((box) => {
+    box.onchange = () => {
+      const id = box.dataset.openShift;
+      if (box.checked) {
+        if (!state.openShiftsSelection.includes(id)) state.openShiftsSelection.push(id);
+      } else {
+        state.openShiftsSelection = state.openShiftsSelection.filter((x) => x !== id);
+      }
+    };
+  });
+
+  if (el.openShiftsOpenBtn) {
+    el.openShiftsOpenBtn.onclick = () => {
+      const now = nowTimeHHMM();
+      state.data.shifts.forEach((s) => {
+        if (!state.openShiftsSelection.includes(s.id)) return;
+        if (!s.actualStart) s.actualStart = now;
+        if (!s.start) s.start = normalizeCheckInTime(now);
+      });
+      persist();
+      renderOpenShiftsAdmin();
+      renderFinanceTable();
+    };
+  }
+
+  if (el.openShiftsCloseBtn) {
+    el.openShiftsCloseBtn.onclick = () => {
+      const now = nowTimeHHMM();
+      state.data.shifts.forEach((s) => {
+        if (!state.openShiftsSelection.includes(s.id)) return;
+        if (!s.actualStart) s.actualStart = normalizeCheckInTime(now);
+        if (!s.actualEnd) s.actualEnd = now;
+        s.end = now;
+      });
+      persist();
+      renderOpenShiftsAdmin();
+      renderFinanceTable();
+    };
+  }
 }
 
 function renderAnalytics() {
@@ -1593,6 +1713,12 @@ function loadData() {
       department: "Все отделы",
       employeeId: "all",
     },
+    openShiftsFilter: {
+      mode: "day",
+      day: todayISO(),
+      from: todayISO(),
+      to: todayISO(),
+    },
   };
 
   if (!raw) return base;
@@ -1627,6 +1753,10 @@ function loadData() {
 
   if (!data.analyticsFilter?.from) {
     data.analyticsFilter = { from: monthBounds(monthISO(new Date())).from, to: monthBounds(monthISO(new Date())).to, department: "Все отделы", employeeId: "all" };
+  }
+
+  if (!data.openShiftsFilter?.mode) {
+    data.openShiftsFilter = { mode: "day", day: todayISO(), from: todayISO(), to: todayISO() };
   }
 
   return data;
