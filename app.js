@@ -1190,13 +1190,26 @@ function renderOpenShiftsAdmin() {
   const rows = getOpenShiftRows(state.data.openShiftsFilter);
   state.openShiftsSelection = state.openShiftsSelection.filter((id) => rows.some((r) => r.s.id === id));
 
-  el.openShiftsTable.innerHTML = `<thead><tr><th></th><th>Дата</th><th>Сотрудник</th><th>Отдел</th><th>План</th><th>Факт</th><th>Статус</th></tr></thead><tbody>${rows
+  const allChecked = rows.length > 0 && rows.every(({ s }) => state.openShiftsSelection.includes(s.id));
+  el.openShiftsTable.innerHTML = `<thead><tr><th><input type="checkbox" data-open-shift-all ${allChecked ? "checked" : ""} /></th><th>Дата</th><th>Сотрудник</th><th>Отдел</th><th>План</th><th>Факт</th><th>Статус</th></tr></thead><tbody>${rows
     .map(({ s, user }) => {
       const checked = state.openShiftsSelection.includes(s.id) ? "checked" : "";
       const status = s.actualStart && s.actualEnd ? "Закрыта" : s.actualStart ? "Открыта" : "Не открыта";
       return `<tr><td><input type="checkbox" data-open-shift="${s.id}" ${checked}/></td><td>${s.date}</td><td>${xName(user)}</td><td>${user.department}</td><td>${s.start || "-"} - ${s.end || "-"}</td><td>${s.actualStart || "-"} - ${s.actualEnd || "-"}</td><td>${status}</td></tr>`;
     })
     .join("")}</tbody>`;
+
+  const allBox = el.openShiftsTable.querySelector('[data-open-shift-all]');
+  if (allBox) {
+    allBox.onchange = () => {
+      if (allBox.checked) {
+        state.openShiftsSelection = rows.map(({ s }) => s.id);
+      } else {
+        state.openShiftsSelection = [];
+      }
+      renderOpenShiftsAdmin();
+    };
+  }
 
   el.openShiftsTable.querySelectorAll('[data-open-shift]').forEach((box) => {
     box.onchange = () => {
@@ -1206,6 +1219,8 @@ function renderOpenShiftsAdmin() {
       } else {
         state.openShiftsSelection = state.openShiftsSelection.filter((x) => x !== id);
       }
+      const allSelected = rows.length > 0 && rows.every(({ s }) => state.openShiftsSelection.includes(s.id));
+      if (allBox) allBox.checked = allSelected;
     };
   });
 
@@ -1796,7 +1811,7 @@ function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
     date: `${month}-28`,
     type: "Удержание НДФЛ",
     amount: -metrics.ndfl,
-    note: "13% для официального трудоустройства",
+    note: "13% удержание налога",
   }] : [];
 
   const adjustmentRows = state.data.adjustments
