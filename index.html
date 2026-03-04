@@ -93,11 +93,18 @@
         <section id="tab-finance" class="tab-panel hidden">
           <h2>Финансы</h2>
           <form id="finance-filter" class="inline-form"></form>
+          <div class="card">
+            <div class="card-head">
+              <h3>Рабочие дни по месяцам</h3>
+              <button id="workdays-edit-toggle" class="btn btn-secondary" type="button" aria-label="Редактировать рабочие дни">⚙️</button>
+            </div>
+            <div id="workdays-grid" class="workdays-grid"></div>
+          </div>
           <div class="table-wrap">
             <table id="finance-table"></table>
           </div>
-          <div class="card">
-            <h3>Действия по сотруднику</h3>
+          <div class="card hidden" id="finance-actions-card">
+            <h3 id="finance-actions-title">Действия по сотруднику</h3>
             <form id="finance-actions-form" class="inline-form"></form>
           </div>
           <div class="card">

@@ -23,6 +23,9 @@ const state = {
   employeeMonth: monthISO(new Date()),
   financeHistoryUserId: null,
   financeActionUserId: null,
+  financeSelectedUserIds: [],
+  financeActionMode: "payout",
+  workDaysEditMode: false,
   dictEditMode: false,
   dictionaryDraft: null,
   shiftGroup: "samara",
@@ -62,7 +65,11 @@ const el = {
   shiftsPageTitle: document.getElementById("shifts-page-title"),
   financeFilter: document.getElementById("finance-filter"),
   financeTable: document.getElementById("finance-table"),
+  financeActionsCard: document.getElementById("finance-actions-card"),
+  financeActionsTitle: document.getElementById("finance-actions-title"),
   financeActionsForm: document.getElementById("finance-actions-form"),
+  workDaysEditToggle: document.getElementById("workdays-edit-toggle"),
+  workDaysGrid: document.getElementById("workdays-grid"),
   financeHistoryTitle: document.getElementById("finance-history-title"),
   financeHistoryTable: document.getElementById("finance-history-table"),
   myProfile: document.getElementById("employee-profile"),
@@ -86,6 +93,7 @@ function init() {
   wireTabs();
   wireDictEditor();
   wireEmployeeCreateToggle();
+  wireWorkDaysEditor();
   render();
 }
 
@@ -137,6 +145,15 @@ function wireEmployeeCreateToggle() {
   };
 }
 
+function wireWorkDaysEditor() {
+  if (!el.workDaysEditToggle) return;
+  el.workDaysEditToggle.onclick = () => {
+    state.workDaysEditMode = !state.workDaysEditMode;
+    if (!state.workDaysEditMode) persist();
+    renderWorkDaysByMonthCard();
+  };
+}
+
 function wireTabs() {
   el.tabs.forEach((tab) => {
     tab.onclick = () => {
@@ -180,6 +197,7 @@ function render() {
     renderAttendanceQrCard();
     renderEmployeesTable();
     renderShiftBlocks();
+    renderWorkDaysByMonthCard();
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
@@ -271,7 +289,7 @@ function renderDictionaries() {
       const opts = source[key]
         .map((v, i) => {
           if (!state.dictEditMode) return `<li>${v}</li>`;
-          return `<li>${v} <button type="button" data-key="${key}" data-index="${i}" class="dict-del">Удалить</button></li>`;
+          return `<li>${v} <button type="button" data-key="${key}" data-index="${i}" class="dict-del" aria-label="Удалить">✖</button></li>`;
         })
         .join("");
       const addForm = state.dictEditMode
@@ -683,6 +701,35 @@ function renderDayShiftsForBlock(block) {
   });
 }
 
+function renderWorkDaysByMonthCard() {
+  if (!el.workDaysGrid) return;
+  if (el.workDaysEditToggle) {
+    el.workDaysEditToggle.textContent = state.workDaysEditMode ? "💾" : "⚙️";
+    el.workDaysEditToggle.title = state.workDaysEditMode ? "Сохранить рабочие дни" : "Редактировать рабочие дни";
+  }
+
+  const options = buildMonthOptions(12);
+  el.workDaysGrid.innerHTML = options
+    .map((m) => {
+      const val = Number(state.data.workDaysByMonth[m.value] || 0);
+      if (!state.workDaysEditMode) {
+        return `<div class="workday-item"><span>${m.label}</span><strong>${val || "—"}</strong></div>`;
+      }
+      return `<label class="workday-item"><span>${m.label}</span><input data-workdays-month="${m.value}" type="number" min="1" max="31" value="${val || ""}" placeholder="—" /></label>`;
+    })
+    .join("");
+
+  if (!state.workDaysEditMode) return;
+  el.workDaysGrid.querySelectorAll("[data-workdays-month]").forEach((input) => {
+    input.onchange = () => {
+      const m = input.dataset.workdaysMonth;
+      const val = Number(input.value || 0);
+      if (val > 0) state.data.workDaysByMonth[m] = val;
+      else delete state.data.workDaysByMonth[m];
+    };
+  });
+}
+
 function renderFinanceFilter() {
   if (!state.data.financeFilter) {
     const month = monthISO(new Date());
@@ -698,12 +745,11 @@ function renderFinanceFilter() {
 
   const f = state.data.financeFilter;
   const departments = ["Все отделы", ...state.data.dictionaries.departments];
-  const wd = state.data.workDaysByMonth[f.month] ?? "";
   const employeeOptions = [
     { id: "all", label: "Все сотрудники" },
     ...state.data.users
       .filter((u) => u.role === "employee")
-      .map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName}` })),
+      .map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName} ${u.middleName}` })),
   ];
 
   const monthOptions = buildMonthOptions(18)
@@ -720,7 +766,6 @@ function renderFinanceFilter() {
     <label>Сотрудник <select name="employeeId">${employeeOptions
       .map((o) => `<option value="${o.id}" ${o.id === (f.employeeId || "all") ? "selected" : ""}>${o.label}</option>`)
       .join("")}</select></label>
-    <label>Рабочих дней в месяце <input name="workDays" type="number" min="1" max="31" value="${wd}" /></label>
     <button class="btn btn-primary" type="submit">Применить</button>
   `;
 
@@ -738,7 +783,6 @@ function renderFinanceFilter() {
     const fd = new FormData(el.financeFilter);
     const month = String(fd.get("month") || monthISO(new Date()));
     const bounds = monthBounds(month);
-    const workDays = Number(fd.get("workDays") || 0);
     const from = String(fd.get("from") || bounds.from);
     const to = String(fd.get("to") || bounds.to);
 
@@ -749,12 +793,21 @@ function renderFinanceFilter() {
       department: String(fd.get("department") || "Все отделы"),
       employeeId: String(fd.get("employeeId") || "all"),
     };
-    if (workDays > 0) state.data.workDaysByMonth[month] = workDays;
+    state.financeSelectedUserIds = [];
     persist();
+    renderWorkDaysByMonthCard();
     renderFinanceFilter();
     renderFinanceTable();
     renderFinanceHistory();
   };
+}
+
+function getFilteredFinanceUsers() {
+  const f = state.data.financeFilter;
+  return state.data.users
+    .filter((u) => u.role === "employee")
+    .filter((u) => f.department === "Все отделы" || u.department === f.department)
+    .filter((u) => (f.employeeId || "all") === "all" || u.id === f.employeeId);
 }
 
 function renderFinanceTable() {
@@ -763,23 +816,28 @@ function renderFinanceTable() {
   const monthStart = period.start;
   const monthEnd = period.end;
 
-  const users = state.data.users
-    .filter((u) => u.role === "employee")
-    .filter((u) => f.department === "Все отделы" || u.department === f.department)
-    .filter((u) => (f.employeeId || "all") === "all" || u.id === f.employeeId);
-
+  const users = getFilteredFinanceUsers();
   const rows = users.map((user) => {
     const metrics = computeMonthlyMetrics(user, f.month, monthStart, monthEnd);
     return { user, metrics };
   });
 
+  state.financeSelectedUserIds = state.financeSelectedUserIds.filter((id) => users.some((u) => u.id === id));
+
+  const allSelected = users.length > 0 && users.every((u) => state.financeSelectedUserIds.includes(u.id));
+  el.financeTable.classList.add("finance-table");
   el.financeTable.innerHTML = `<thead><tr>
-    <th>Фамилия</th><th>Должность</th><th>Отдел</th><th>Оформление</th><th>Форма оплаты</th><th>Смен</th><th>Часы</th>
-    <th>Начислено</th><th>НДФЛ</th><th>Премии</th><th>Штрафы</th><th>К выплате</th><th>Выплачено</th><th>Остаток</th><th>Действия</th>
+    <th><button type="button" class="btn btn-secondary btn-mini" id="finance-select-all">${allSelected ? "Снять всё" : "Выбрать все"}</button></th>
+    <th>Фамилия</th><th>Имя</th><th>Отчество</th><th>Должность</th><th>Отдел</th><th>Оформление</th><th>Форма оплаты</th><th>Смен</th><th>Часы</th>
+    <th>Начислено</th><th>НДФЛ</th><th>Премии</th><th>Штрафы</th><th>К выплате</th><th>Выплачено</th><th>Остаток</th>
   </tr></thead><tbody>${rows
     .map(({ user, metrics }) => {
-      return `<tr>
+      const checked = state.financeSelectedUserIds.includes(user.id) ? "checked" : "";
+      return `<tr data-user-id="${user.id}">
+        <td><input type="checkbox" data-fin-check="${user.id}" ${checked} /></td>
         <td>${user.lastName}</td>
+        <td>${user.firstName}</td>
+        <td>${user.middleName}</td>
         <td>${user.position}</td>
         <td>${user.department}</td>
         <td>${user.employmentType || "Неофициально"}</td>
@@ -793,72 +851,66 @@ function renderFinanceTable() {
         <td>${metrics.netDue.toFixed(2)}</td>
         <td>${metrics.paid.toFixed(2)}</td>
         <td>${metrics.remaining.toFixed(2)}</td>
-        <td>
-          <button class="btn btn-secondary payout-btn" data-user-id="${user.id}">Выплата</button>
-          <button class="btn btn-secondary bonus-btn" data-user-id="${user.id}">Премия</button>
-          <button class="btn btn-secondary fine-btn" data-user-id="${user.id}">Штраф</button>
-          <button class="btn btn-secondary history-btn" data-user-id="${user.id}">История</button>
-        </td>
       </tr>`;
     })
     .join("")}</tbody>`;
 
-  el.financeTable.querySelectorAll(".payout-btn").forEach((btn) => {
-    btn.onclick = () => {
-      state.financeActionUserId = btn.dataset.userId;
-      renderFinanceActions("payout");
+  const selectAllBtn = document.getElementById("finance-select-all");
+  if (selectAllBtn) {
+    selectAllBtn.onclick = () => {
+      if (allSelected) state.financeSelectedUserIds = [];
+      else state.financeSelectedUserIds = users.map((u) => u.id);
+      renderFinanceTable();
+    };
+  }
+
+  el.financeTable.querySelectorAll("[data-fin-check]").forEach((box) => {
+    box.onchange = () => {
+      const id = box.dataset.finCheck;
+      if (box.checked) {
+        if (!state.financeSelectedUserIds.includes(id)) state.financeSelectedUserIds.push(id);
+      } else {
+        state.financeSelectedUserIds = state.financeSelectedUserIds.filter((x) => x !== id);
+      }
+      renderFinanceActions(state.financeActionMode);
     };
   });
 
-  el.financeTable.querySelectorAll(".bonus-btn").forEach((btn) => {
-    btn.onclick = () => {
-      state.financeActionUserId = btn.dataset.userId;
-      renderFinanceActions("bonus");
-    };
-  });
-
-  el.financeTable.querySelectorAll(".fine-btn").forEach((btn) => {
-    btn.onclick = () => {
-      state.financeActionUserId = btn.dataset.userId;
-      renderFinanceActions("fine");
-    };
-  });
-
-  el.financeTable.querySelectorAll(".history-btn").forEach((btn) => {
-    btn.onclick = () => {
-      state.financeHistoryUserId = btn.dataset.userId;
+  el.financeTable.querySelectorAll("tbody tr").forEach((tr) => {
+    tr.ondblclick = () => {
+      state.financeHistoryUserId = tr.dataset.userId;
       renderFinanceHistory();
     };
   });
 
-  if (!state.financeHistoryUserId && users[0]) {
-    state.financeHistoryUserId = users[0].id;
-  }
-  renderFinanceActions();
+  if (!state.financeHistoryUserId && users[0]) state.financeHistoryUserId = users[0].id;
+  renderFinanceActions(state.financeActionMode);
   renderFinanceHistory();
 }
 
 function renderFinanceActions(defaultAction = "payout") {
-  const f = state.data.financeFilter;
-  const users = state.data.users
-    .filter((u) => u.role === "employee")
-    .filter((u) => f.department === "Все отделы" || u.department === f.department)
-    .filter((u) => (f.employeeId || "all") === "all" || u.id === f.employeeId);
+  const users = getFilteredFinanceUsers();
+  state.financeActionMode = defaultAction || state.financeActionMode;
+  const selectedUsers = users.filter((u) => state.financeSelectedUserIds.includes(u.id));
 
-  if (!users.length) {
-    el.financeActionsForm.innerHTML = "<p>Нет сотрудников для выбранного фильтра.</p>";
+  if (!selectedUsers.length) {
+    el.financeActionsCard?.classList.add("hidden");
+    el.financeActionsForm.innerHTML = "";
     return;
   }
 
-  if (!state.financeActionUserId || !users.find((u) => u.id === state.financeActionUserId)) {
-    state.financeActionUserId = users[0].id;
+  el.financeActionsCard?.classList.remove("hidden");
+  const isMass = selectedUsers.length > 1;
+  if (el.financeActionsTitle) {
+    el.financeActionsTitle.textContent = isMass
+      ? `Массовые действия (${selectedUsers.length} сотрудников)`
+      : `Действие по сотруднику: ${selectedUsers[0].lastName} ${selectedUsers[0].firstName}`;
   }
 
+  const selectedNames = selectedUsers.map((u) => `${u.lastName} ${u.firstName}`).join(", ");
   el.financeActionsForm.innerHTML = `
-    <label>Сотрудник
-      <select name="userId">${users
-        .map((u) => `<option value="${u.id}" ${u.id === state.financeActionUserId ? "selected" : ""}>${u.lastName} ${u.firstName}</option>`)
-        .join("")}</select>
+    <label>${isMass ? "Выбраны сотрудники" : "Сотрудник"}
+      <input value="${selectedNames}" disabled />
     </label>
     <label>Дата
       <input type="date" name="date" value="${todayISO()}" />
@@ -884,13 +936,7 @@ function renderFinanceActions(defaultAction = "payout") {
     </div>
   `;
 
-  const userSelect = el.financeActionsForm.querySelector('select[name="userId"]');
-  userSelect.value = state.financeActionUserId;
-  userSelect.onchange = () => {
-    state.financeActionUserId = userSelect.value;
-  };
-
-  let selectedAction = defaultAction;
+  let selectedAction = state.financeActionMode;
   const selectButtons = [...el.financeActionsForm.querySelectorAll("[data-action-select]")];
   const highlight = () => {
     selectButtons.forEach((b) => {
@@ -903,43 +949,45 @@ function renderFinanceActions(defaultAction = "payout") {
   selectButtons.forEach((btn) => {
     btn.onclick = () => {
       selectedAction = btn.dataset.actionSelect;
+      state.financeActionMode = selectedAction;
       highlight();
     };
   });
 
   el.financeActionsForm.querySelector('[data-action-submit]').onclick = () => {
     const fd = new FormData(el.financeActionsForm);
-    const userId = String(fd.get("userId") || "");
     const amount = Number(fd.get("amount") || 0);
     const date = String(fd.get("date") || todayISO());
     const note = String(fd.get("note") || "").trim();
-    if (!userId || amount <= 0) return;
+    if (amount <= 0) return;
 
-    if (selectedAction === "payout") {
-      const payoutType = String(fd.get("payoutType") || "Вне графика");
-      state.data.payouts.push({
-        id: crypto.randomUUID(),
-        userId,
-        month: f.month,
-        amount,
-        type: payoutType,
-        date,
-        note,
-      });
-    } else {
-      if (!note) return;
-      state.data.adjustments.push({
-        id: crypto.randomUUID(),
-        userId,
-        month: f.month,
-        kind: selectedAction === "bonus" ? "bonus" : "fine",
-        amount,
-        note,
-        createdAt: `${date}T12:00:00.000Z`,
-      });
-    }
+    selectedUsers.forEach((user) => {
+      if (selectedAction === "payout") {
+        const payoutType = String(fd.get("payoutType") || "Вне графика");
+        state.data.payouts.push({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          month: state.data.financeFilter.month,
+          amount,
+          type: payoutType,
+          date,
+          note,
+        });
+      } else {
+        if (!note) return;
+        state.data.adjustments.push({
+          id: crypto.randomUUID(),
+          userId: user.id,
+          month: state.data.financeFilter.month,
+          kind: selectedAction === "bonus" ? "bonus" : "fine",
+          amount,
+          note,
+          createdAt: `${date}T12:00:00.000Z`,
+        });
+      }
+    });
 
-    state.financeActionUserId = userId;
+    state.financeSelectedUserIds = [];
     persist();
     renderFinanceTable();
     renderFinanceHistory();

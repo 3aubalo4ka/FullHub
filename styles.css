@@ -231,6 +231,84 @@ select:focus {
   font-size: 0.87rem;
 }
 
+
+.dict-del {
+  margin-left: 0.35rem;
+  border: none;
+  background: #fee2e2;
+  color: #b91c1c;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  line-height: 20px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dict-del:hover {
+  background: #fecaca;
+}
+
+#employees-table th:nth-child(1),
+#employees-table td:nth-child(1) { width: 8%; min-width: 95px; }
+#employees-table th:nth-child(2),
+#employees-table td:nth-child(2) { width: 8%; min-width: 90px; }
+#employees-table th:nth-child(3),
+#employees-table td:nth-child(3) { width: 8%; min-width: 90px; }
+#employees-table th:nth-child(7),
+#employees-table td:nth-child(7) { width: 4%; min-width: 65px; }
+#employees-table th:nth-child(8),
+#employees-table td:nth-child(8) { width: 5%; min-width: 75px; }
+#employees-table th:nth-child(11),
+#employees-table td:nth-child(11) { width: 7%; min-width: 100px; }
+#employees-table th:nth-child(12),
+#employees-table td:nth-child(12) { width: 5%; min-width: 80px; }
+
+.btn-mini {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.finance-table {
+  min-width: 1320px;
+}
+
+.finance-table tbody tr {
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.finance-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+.workdays-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.55rem;
+}
+
+.workday-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.workday-item span {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.workday-item input {
+  max-width: 78px;
+}
+
 .birthday-card {
   border: 1px solid #fcd34d;
   background: linear-gradient(135deg, #fff7ed, #fffbeb);
