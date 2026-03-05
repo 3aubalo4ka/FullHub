@@ -185,13 +185,23 @@
       <section id="employee-view" class="hidden">
         <h2>Личный кабинет сотрудника</h2>
         <div id="employee-profile" class="card"></div>
-        <div class="card">
-          <h3>Мои смены</h3>
-          <div class="table-wrap"><table id="my-shifts-table"></table></div>
+        <div class="card" id="my-shifts-card">
+          <div class="card-head">
+            <h3>Мои смены</h3>
+            <button id="my-shifts-toggle" class="btn btn-secondary" type="button">скрыть</button>
+          </div>
+          <div id="my-shifts-content">
+            <div class="table-wrap"><table id="my-shifts-table"></table></div>
+          </div>
         </div>
-        <div class="card">
-          <h3>История движения денежных средств</h3>
-          <div class="table-wrap"><table id="my-money-history-table"></table></div>
+        <div class="card" id="my-money-card">
+          <div class="card-head">
+            <h3>История движения денежных средств</h3>
+            <button id="my-money-toggle" class="btn btn-secondary" type="button">скрыть</button>
+          </div>
+          <div id="my-money-content">
+            <div class="table-wrap"><table id="my-money-history-table"></table></div>
+          </div>
         </div>
       </section>
     </div>

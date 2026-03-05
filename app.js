@@ -43,6 +43,7 @@ const state = {
   },
   employeeFilter: { query: "", department: "all", position: "all" },
   employeeEditMode: false,
+  myCabinetPanels: { profile: true, kpi: true, shifts: true, money: true },
 };
 
 const el = {
@@ -104,7 +105,11 @@ const el = {
   financeHistoryContent: document.getElementById("finance-history-content"),
   myProfile: document.getElementById("employee-profile"),
   myShifts: document.getElementById("my-shifts-table"),
+  myShiftsToggle: document.getElementById("my-shifts-toggle"),
+  myShiftsContent: document.getElementById("my-shifts-content"),
   myMoneyHistory: document.getElementById("my-money-history-table"),
+  myMoneyToggle: document.getElementById("my-money-toggle"),
+  myMoneyContent: document.getElementById("my-money-content"),
   tabs: [...document.querySelectorAll(".tab")],
   tabPanels: {
     employees: document.getElementById("tab-employees"),
@@ -1727,45 +1732,95 @@ function renderMyCabinet() {
         SHIFT_HOURS_STANDARD
       : Number(u.hourlyRate || 0);
 
+  const p = state.myCabinetPanels;
   el.myProfile.innerHTML = `
-    <p><strong>${u.lastName} ${u.firstName} ${u.middleName}</strong></p>
-    <p>Должность: ${u.position}</p>
-    <p>Отдел: ${u.department}</p>
-    <p>Форма оплаты: ${u.payForm}${u.payForm === "Оклад" ? ` (${Number(u.monthlySalary || 0).toFixed(2)} ₽/мес)` : ""}${u.payForm === "Часовая" ? ` (${Number(u.hourlyRate || 0).toFixed(2)} ₽/ч)` : ""}</p>
-    <p>Расчетная ставка за час в месяце: <b>${hourlyRateForMonth.toFixed(2)} ₽/ч</b></p>
-    <form id="month-selector" class="inline-form">
-      <label>Месяц <select name="month">${buildMonthOptions(18).map((m) => `<option value="${m.value}" ${m.value === month ? "selected" : ""}>${m.label}</option>`).join("")}</select></label>
-      <button class="btn btn-secondary" type="submit">Показать</button>
-    </form>
-
-    <div class="employee-kpi-grid">
-      <div class="kpi-card"><span>Смен за месяц</span><strong>${metrics.shiftCount}</strong></div>
-      <div class="kpi-card"><span>Часов за месяц</span><strong>${metrics.hours.toFixed(2)}</strong></div>
-      <div class="kpi-card"><span>К выплате</span><strong>${metrics.remaining.toFixed(2)} ₽</strong></div>
-      <div class="kpi-card"><span>Ближайшая плановая выплата</span><strong>${nextPayout}</strong></div>
+    <div class="cabinet-hero">
+      <div>
+        <h3>${u.lastName} ${u.firstName} ${u.middleName}</h3>
+        <p class="dict-hint">${u.position} • ${u.department}</p>
+      </div>
+      <div class="cabinet-badges">
+        <span class="cabinet-badge">${u.payForm}</span>
+        <span class="cabinet-badge">График: ${u.schedule || "—"}</span>
+      </div>
     </div>
 
-    <div class="employee-kpi-grid">
-      <div class="kpi-card"><span>Сегодняшняя смена</span><strong>${todayShift ? `${todayShift.start || "сделка"}${todayShift.end ? `–${todayShift.end}` : ""}` : "Нет смены"}</strong></div>
-      <div class="kpi-card"><span>Следующая смена</span><strong>${nextShift ? `${formatDateRU(nextShift.date)} • ${nextShift.start || "сделка"}${nextShift.end ? `–${nextShift.end}` : ""}` : "Не назначена"}</strong></div>
+    <div class="cabinet-section">
+      <button class="cabinet-section-toggle" type="button" id="cab-profile-toggle">${p.profile ? "скрыть" : "открыть"} • Профиль и настройки периода</button>
+      <div class="cabinet-section-content ${p.profile ? "" : "hidden"}">
+        <div class="employee-kpi-grid compact-grid">
+          <div class="kpi-card"><span>Форма оплаты</span><strong>${u.payForm}${u.payForm === "Оклад" ? ` (${Number(u.monthlySalary || 0).toFixed(2)} ₽/мес)` : ""}${u.payForm === "Часовая" ? ` (${Number(u.hourlyRate || 0).toFixed(2)} ₽/ч)` : ""}</strong></div>
+          <div class="kpi-card"><span>Расчетная ставка за час</span><strong>${hourlyRateForMonth.toFixed(2)} ₽/ч</strong></div>
+          <div class="kpi-card"><span>Ближайшая плановая выплата</span><strong>${nextPayout}</strong></div>
+        </div>
+        <form id="month-selector" class="inline-form">
+          <label>Месяц <select name="month">${buildMonthOptions(18).map((m) => `<option value="${m.value}" ${m.value === month ? "selected" : ""}>${m.label}</option>`).join("")}</select></label>
+          <button class="btn btn-secondary" type="submit">Показать</button>
+        </form>
+      </div>
     </div>
 
-    <div class="attendance-card">
-      <h3>Отметка прихода/ухода по QR</h3>
-      <p class="dict-hint">Статус: <b>${attendanceState}</b></p>
-      <button class="btn btn-primary" id="scan-attendance-btn" type="button">Сканировать QR-код</button>
+    <div class="cabinet-section">
+      <button class="cabinet-section-toggle" type="button" id="cab-kpi-toggle">${p.kpi ? "скрыть" : "открыть"} • Показатели и QR</button>
+      <div class="cabinet-section-content ${p.kpi ? "" : "hidden"}">
+        <div class="employee-kpi-grid">
+          <div class="kpi-card"><span>Смен за месяц</span><strong>${metrics.shiftCount}</strong></div>
+          <div class="kpi-card"><span>Часов за месяц</span><strong>${metrics.hours.toFixed(2)}</strong></div>
+          <div class="kpi-card"><span>Начислено</span><strong>${metrics.gross.toFixed(2)} ₽</strong></div>
+          <div class="kpi-card"><span>К выплате</span><strong>${metrics.remaining.toFixed(2)} ₽</strong></div>
+        </div>
+        <div class="employee-kpi-grid compact-grid">
+          <div class="kpi-card"><span>Сегодняшняя смена</span><strong>${todayShift ? `${todayShift.start || "сделка"}${todayShift.end ? `–${todayShift.end}` : ""}` : "Нет смены"}</strong></div>
+          <div class="kpi-card"><span>Следующая смена</span><strong>${nextShift ? `${formatDateRU(nextShift.date)} • ${nextShift.start || "сделка"}${nextShift.end ? `–${nextShift.end}` : ""}` : "Не назначена"}</strong></div>
+        </div>
+        <div class="attendance-card">
+          <h3>Отметка прихода/ухода по QR</h3>
+          <p class="dict-hint">Статус: <b>${attendanceState}</b></p>
+          <button class="btn btn-primary" id="scan-attendance-btn" type="button">Сканировать QR-код</button>
+        </div>
+        <p><strong>Итог за месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
+      </div>
     </div>
-
-    <p><strong>За месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
   `;
 
-  const monthForm = document.getElementById("month-selector");
-  monthForm.onsubmit = (e) => {
-    e.preventDefault();
-    const chosen = String(new FormData(monthForm).get("month") || "");
-    if (chosen) state.employeeMonth = chosen;
-    renderMyCabinet();
+  const wireCabinetPanel = (btnId, key) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.onclick = () => {
+      state.myCabinetPanels[key] = !state.myCabinetPanels[key];
+      renderMyCabinet();
+    };
   };
+  wireCabinetPanel("cab-profile-toggle", "profile");
+  wireCabinetPanel("cab-kpi-toggle", "kpi");
+
+  if (el.myShiftsToggle && el.myShiftsContent) {
+    el.myShiftsToggle.textContent = state.myCabinetPanels.shifts ? "скрыть" : "открыть";
+    el.myShiftsContent.classList.toggle("hidden", !state.myCabinetPanels.shifts);
+    el.myShiftsToggle.onclick = () => {
+      state.myCabinetPanels.shifts = !state.myCabinetPanels.shifts;
+      renderMyCabinet();
+    };
+  }
+
+  if (el.myMoneyToggle && el.myMoneyContent) {
+    el.myMoneyToggle.textContent = state.myCabinetPanels.money ? "скрыть" : "открыть";
+    el.myMoneyContent.classList.toggle("hidden", !state.myCabinetPanels.money);
+    el.myMoneyToggle.onclick = () => {
+      state.myCabinetPanels.money = !state.myCabinetPanels.money;
+      renderMyCabinet();
+    };
+  }
+
+  const monthForm = document.getElementById("month-selector");
+  if (monthForm) {
+    monthForm.onsubmit = (e) => {
+      e.preventDefault();
+      const chosen = String(new FormData(monthForm).get("month") || "");
+      if (chosen) state.employeeMonth = chosen;
+      renderMyCabinet();
+    };
+  }
 
   const scanBtn = document.getElementById("scan-attendance-btn");
   if (scanBtn) {
@@ -1782,17 +1837,21 @@ function renderMyCabinet() {
     };
   }
 
-  el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th><th>График</th></tr></thead><tbody>${shifts
-    .map((s) => {
-      const amount = calculateShiftPay(s, u, month);
-      return `<tr><td>${s.date}</td><td>${u.payForm}</td><td>${s.start || "-"}${s.end ? ` - ${s.end}` : ""}</td><td>${amount.toFixed(2)} ₽</td><td>${s.start && s.end ? `${s.start}–${s.end}` : "сдельная"}</td></tr>`;
-    })
-    .join("")}</tbody>`;
+  if (state.myCabinetPanels.shifts) {
+    el.myShifts.innerHTML = `<thead><tr><th>Дата</th><th>Тип</th><th>Время</th><th>Начисление</th><th>График</th></tr></thead><tbody>${shifts
+      .map((s) => {
+        const amount = calculateShiftPay(s, u, month);
+        return `<tr><td>${s.date}</td><td>${u.payForm}</td><td>${s.start || "-"}${s.end ? ` - ${s.end}` : ""}</td><td>${amount.toFixed(2)} ₽</td><td>${s.start && s.end ? `${s.start}–${s.end}` : "сдельная"}</td></tr>`;
+      })
+      .join("")}</tbody>`;
+  }
 
-  const moneyHistory = buildMoneyHistoryEntries(u, month, monthStart, monthEnd);
-  el.myMoneyHistory.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>${moneyHistory
-    .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
-    .join("")}</tbody>`;
+  if (state.myCabinetPanels.money) {
+    const moneyHistory = buildMoneyHistoryEntries(u, month, monthStart, monthEnd);
+    el.myMoneyHistory.innerHTML = `<thead><tr><th>Дата</th><th>Операция</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>${moneyHistory
+      .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
+      .join("")}</tbody>`;
+  }
 }
 
 function renderFinanceHistory() {

@@ -521,6 +521,66 @@ th {
   min-width: 110px;
 }
 
+
+#employee-view .card {
+  margin-bottom: 0.9rem;
+}
+
+.cabinet-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+
+.cabinet-hero h3 {
+  margin: 0;
+}
+
+.cabinet-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cabinet-badge {
+  background: #eaf2ff;
+  border: 1px solid #cfe0ff;
+  color: #1f3a70;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.cabinet-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin: 0.65rem 0;
+  background: #fff;
+}
+
+.cabinet-section-toggle {
+  width: 100%;
+  border: none;
+  background: #f8fafc;
+  color: var(--text);
+  text-align: left;
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px 12px 0 0;
+  cursor: pointer;
+}
+
+.cabinet-section-content {
+  padding: 0.7rem 0.75rem 0.2rem;
+}
+
+.compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .employee-kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -619,6 +679,11 @@ th {
 
   .dict-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cabinet-hero {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   table {
