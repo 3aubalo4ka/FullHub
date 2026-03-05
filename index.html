@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <title>FullHub — корпоративный портал</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="auth-shell" id="auth-shell">
+      <section class="auth-card">
+        <h1>FullHub</h1>
+        <p>Корпоративный портал компании</p>
+        <p class="version-pill" id="app-version-pill">Версия: загрузка...</p>
+        <form id="login-form" class="stack">
+          <label>
+            Логин (телефон)
+            <input id="login-phone" required placeholder="79990000000" />
+          </label>
+          <label>
+            Пароль
+            <input id="login-password" type="password" required placeholder="••••••••" />
+          </label>
+          <button type="submit" class="btn btn-primary">Войти</button>
+          <button type="button" id="reset-data-btn" class="btn btn-secondary">Сбросить локальные данные</button>
+          <p class="error" id="login-error"></p>
+        </form>
+      </section>
+    </main>
+
+    <div class="app hidden" id="app-shell">
+      <header class="topbar">
+        <div>
+          <strong>FullHub</strong>
+          <span id="user-badge"></span>
+        </div>
+        <button id="logout-btn" class="btn btn-secondary">Выйти</button>
+      </header>
+
+      <section id="admin-view" class="hidden">
+        <nav class="tabs">
+          <button class="tab active" data-tab="employees">Сотрудники</button>
+          <button class="tab" data-tab="shifts_samara">Смены Самара</button>
+          <button class="tab" data-tab="shifts_tolyatti">Смены Тольятти</button>
+          <button class="tab" data-tab="finance">Финансы</button>
+          <button class="tab" data-tab="analytics">Аналитика</button>
+        </nav>
+
+        <section id="tab-employees" class="tab-panel">
+          <h2>Сотрудники</h2>
+          <div class="card hidden" id="employee-create-card">
+            <h3>Создание сотрудника</h3>
+            <form id="employee-form" class="grid-form"></form>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h3>Справочники</h3>
+              <button id="dict-edit-toggle" class="btn btn-secondary" type="button" aria-label="Редактировать справочники">⚙️</button>
+            </div>
+            <div id="dictionary-controls" class="dict-grid"></div>
+          </div>
+
+
+          <div class="card birthday-card" id="birthday-reminder-card">
+            <h3>🎉 Ближайшие дни рождения</h3>
+            <div id="birthday-reminder-list"></div>
+          </div>
+
+          <div class="card">
+            <h3>QR-код для отметки прихода/ухода</h3>
+            <canvas id="attendance-qr-canvas" width="200" height="200"></canvas>
+            <p class="dict-hint">Сотрудник сканирует этот код, чтобы открыть/закрыть смену на сегодня.</p>
+            <code id="attendance-qr-token"></code>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Список сотрудников</h3>
+              <div class="card-head-actions">
+                <button id="employees-edit-toggle" class="btn btn-secondary" type="button" aria-label="Редактировать список сотрудников">⚙️</button>
+                <button id="employee-create-toggle" class="btn btn-primary" type="button">+ Добавить сотрудника</button>
+              </div>
+            </div>
+            <form id="employee-filter-form" class="inline-form"></form>
+            <div class="table-wrap">
+              <table id="employees-table"></table>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-shifts" class="tab-panel hidden">
+          <h2 id="shifts-page-title">Смены Самара</h2>
+          <div id="shifts-blocks"></div>
+        </section>
+
+
+        <section id="tab-analytics" class="tab-panel hidden">
+          <h2>Аналитика</h2>
+          <form id="analytics-filter" class="inline-form"></form>
+          <div class="employee-kpi-grid" id="analytics-kpis"></div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Сводка по отделам</h3>
+              <button id="analytics-export" class="btn btn-primary" type="button">Сформировать отчет в Excel</button>
+            </div>
+            <div class="table-wrap"><table id="analytics-dept-table"></table></div>
+          </div>
+          <div class="card">
+            <h3>Сводка по сотрудникам</h3>
+            <div class="table-wrap"><table id="analytics-employee-table"></table></div>
+          </div>
+        </section>
+
+        <section id="tab-finance" class="tab-panel hidden">
+          <h2>Финансы</h2>
+          <form id="finance-filter" class="inline-form"></form>
+          <div class="card">
+            <div class="card-head">
+              <h3>Рабочие дни по месяцам</h3>
+              <div class="workdays-head-actions">
+                <button id="workdays-block-toggle" class="btn btn-secondary" type="button">открыть</button>
+                <button id="workdays-edit-toggle" class="btn btn-secondary" type="button" aria-label="Редактировать рабочие дни">⚙️</button>
+              </div>
+            </div>
+            <div id="workdays-grid" class="workdays-grid hidden"></div>
+          </div>
+          <div class="table-wrap">
+            <table id="finance-table"></table>
+          </div>
+
+          <div class="card" id="open-shifts-card">
+            <h3>Открытые смены (контроль администратора)</h3>
+            <form id="open-shifts-filter" class="inline-form"></form>
+            <div class="table-wrap"><table id="open-shifts-table"></table></div>
+            <div class="inline-form">
+              <label>Время открытия <input id="open-shifts-open-time" type="time" value="09:00" /></label>
+              <button id="open-shifts-open-btn" class="btn btn-secondary" type="button">Открыть выбранные</button>
+              <label>Время закрытия <input id="open-shifts-close-time" type="time" value="18:00" /></label>
+              <button id="open-shifts-close-btn" class="btn btn-primary" type="button">Закрыть выбранные</button>
+            </div>
+          </div>
+
+          <div class="card" id="holiday-days-card">
+            <div class="card-head">
+              <h3>Праздничные дни</h3>
+              <button id="holiday-days-toggle" class="btn btn-secondary" type="button">открыть</button>
+            </div>
+            <div id="holiday-days-content" class="hidden">
+              <form id="holiday-days-form" class="inline-form"></form>
+              <div id="holiday-days-list" class="workdays-grid"></div>
+            </div>
+          </div>
+
+          <div class="card" id="fines-card">
+            <div class="card-head">
+              <h3>Штрафы</h3>
+              <button id="fines-toggle" class="btn btn-secondary" type="button">открыть</button>
+            </div>
+            <div id="fines-content" class="hidden">
+              <form id="auto-fines-settings" class="inline-form"></form>
+              <div class="table-wrap"><table id="fines-table"></table></div>
+            </div>
+          </div>
+
+
+          <div class="card hidden" id="finance-actions-card">
+            <h3 id="finance-actions-title">Действия по сотруднику</h3>
+            <form id="finance-actions-form" class="inline-form"></form>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3 id="finance-history-title">История начислений и списаний</h3>
+              <button id="finance-history-toggle" class="btn btn-secondary" type="button">открыть</button>
+            </div>
+            <div id="finance-history-content" class="hidden">
+              <div class="table-wrap">
+                <table id="finance-history-table"></table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="employee-view" class="hidden">
+        <h2>Личный кабинет сотрудника</h2>
+        <div id="employee-profile" class="card"></div>
+        <div class="card" id="my-shifts-card">
+          <div class="card-head">
+            <h3>Мои смены</h3>
+            <button id="my-shifts-toggle" class="btn btn-secondary" type="button">скрыть</button>
+          </div>
+          <div id="my-shifts-content">
+            <div class="table-wrap"><table id="my-shifts-table"></table></div>
+          </div>
+        </div>
+        <div class="card" id="my-money-card">
+          <div class="card-head">
+            <h3>История движения денежных средств</h3>
+            <button id="my-money-toggle" class="btn btn-secondary" type="button">скрыть</button>
+          </div>
+          <div id="my-money-content">
+            <div class="table-wrap"><table id="my-money-history-table"></table></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="app.js?v=2026-02-27-v4"></script>
+  </body>
+</html>
