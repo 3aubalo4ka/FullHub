@@ -1,165 +1,119 @@
-# FullHub (Production Backend Edition)
+# FullHub — Production Backend Edition
 
-FullHub — корпоративный портал с ролями **Администратор** и **Сотрудник**.
+FullHub — корпоративный портал (SPA) с backend на Node.js.
 
-В этой версии логика авторизации и хранение данных вынесены на backend:
-- frontend: `index.html` + `styles.css` + `app.js`;
-- backend: `server.js` (Node.js + Express + SQLite);
-- данные хранятся в `data/fullhub.db`.
+## Что сделано для production
 
----
+В текущей версии выполнены ключевые требования production-hardening:
 
-## Что реализовано
-
-## 1) Роли и авторизация
-- Вход по телефону/паролю через backend API (`/api/auth/login`).
-- Токен-сессия (JWT) хранится в браузере и используется для API-запросов.
-- Данные приложения загружаются с сервера (`/api/state`) после входа.
-
-## 2) Сотрудники
-- Создание, редактирование (через шестерёнку), удаление.
-- Справочники: должности, формы оплаты, отделы, графики.
-- Поиск и фильтры.
-
-## 3) Смены и графики
-- Самара: 3 блока (логистика/упаковка/водители).
-- Тольятти: отдельный блок.
-- Автогенерация смен по графикам.
-- Ручное назначение и редактирование смен.
-
-## 4) QR-учёт
-- QR для отметки прихода/ухода.
-- Проверка токена дня.
-- Поддержка fallback ручного ввода.
-
-## 5) Финансы и аналитика
-- Периодные фильтры и расчёты.
-- Премии/штрафы/выплаты, автоштрафы.
-- История операций, аналитика, экспорт.
-
-## 6) Личный кабинет сотрудника
-- KPI за месяц, QR-статус.
-- Раскрывающиеся блоки профиля, смен и истории движения средств.
+- ✅ Логика и хранение вынесены на backend (`server.js`, SQLite).
+- ✅ `JWT_SECRET` обязателен и валидируется (минимум 32 символа).
+- ✅ Публичный reset endpoint закрыт: только для `admin` + опциональный IP allowlist.
+- ✅ Демо-логины/пароли обновлены на новые значения.
+- ✅ Пароли хранятся в хешированном виде (`bcryptjs`).
+- ✅ API-права разделены (RBAC на endpoint-ах).
+- ✅ Добавлен аудит с immutable chain hash (`audit_log`).
+- ✅ Добавлены миграции БД (`schema_migrations`).
+- ✅ Добавлены API smoke-тесты (`node --test`) и CI workflow.
+- ✅ Добавлены скрипты резервного копирования БД и пример настройки UFW.
+- ✅ Дана инструкция по HTTPS (Nginx + Let’s Encrypt).
 
 ---
 
 ## Архитектура
 
 ### Frontend
-- `index.html` — структура UI.
-- `styles.css` — оформление.
-- `app.js` — рендер, бизнес-логика UI, вызовы backend API.
-
-### Backend
-- `server.js` — API + раздача статических файлов.
-- База данных: SQLite (`data/fullhub.db`).
-- Основные API:
+- `index.html`, `styles.css`, `app.js`
+- SPA работает через API:
   - `POST /api/auth/login`
   - `GET /api/auth/me`
   - `GET /api/state`
-  - `PUT /api/state`
-  - `POST /api/reset` (сброс демо-данных)
+  - `PUT /api/state` (только admin)
+  - `POST /api/attendance/mark`
+  - `POST /api/reset` (только admin + optional IP allowlist)
 
-### Важно
-Текущая модель хранения — единый JSON state в БД. Это уже серверное хранение и единый источник данных, но для enterprise-нагрузки рекомендуется следующий этап: декомпозиция на нормализованные таблицы (users/shifts/payouts/...), аудит, RBAC-политики, миграции схемы.
+### Backend
+- `server.js` (Express)
+- `better-sqlite3` (SQLite)
+- `jsonwebtoken` (JWT)
+- `bcryptjs` (hash паролей)
+
+### База данных (нормализованные таблицы)
+- `users`
+- `dictionaries`
+- `shifts`
+- `payouts`
+- `adjustments`
+- `settings`
+- `holiday_days`
+- `audit_log` (immutable запись через hash chain)
+- `schema_migrations`
 
 ---
 
-## Демо-доступ
-- Администратор: `79990000000` / `admin123`
-- Сотрудник: `79990000001` / `user123`
+## Новые демо-учётки
 
-> После запуска в проде обязательно смените пароли и удалите/измените демо-учётки.
+- **Администратор**: `79991112233` / `Adm!n-FullHub-2026`
+- **Сотрудник**: `79992223344` / `User-FullHub-2026!`
+
+> Сразу после деплоя в боевую среду смените эти пароли.
 
 ---
 
-## Локальный запуск (production-подобно)
+## Быстрый старт
 
-### 1. Установить зависимости
+### 1) Установка
 ```bash
 npm install
 ```
 
-### 2. Запустить сервер
+### 2) Запуск
 ```bash
-npm start
+JWT_SECRET='replace-with-very-strong-secret-min-32-chars' npm start
 ```
 
-По умолчанию приложение доступно на:
-- <http://localhost:4173>
+По умолчанию:
+- `PORT=4173`
+
+### 3) Проверка
+```bash
+curl http://127.0.0.1:4173/api/health
+```
 
 ---
 
 ## Переменные окружения
 
-- `PORT` — порт сервера (по умолчанию `4173`).
-- `JWT_SECRET` — секрет подписи JWT (в production обязательно задайте свой).
+- `JWT_SECRET` — **обязателен**, минимум 32 символа.
+- `PORT` — порт приложения (по умолчанию `4173`).
+- `RESET_IP_ALLOWLIST` — список IP для `/api/reset`, через запятую.
 
 Пример:
 ```bash
-PORT=4173 JWT_SECRET='replace-with-strong-secret' npm start
+JWT_SECRET='super-long-random-secret-64chars...' \
+PORT=4173 \
+RESET_IP_ALLOWLIST='127.0.0.1,10.0.0.10' \
+npm start
 ```
 
 ---
 
-## Production checklist
+## RBAC и безопасность API
 
-- [ ] Задать сильный `JWT_SECRET`.
-- [ ] Отключить публичный reset endpoint или закрыть его авторизацией/IP.
-- [ ] Сменить демо-логины/пароли.
-- [ ] Включить HTTPS.
-- [ ] Настроить резервное копирование `data/fullhub.db`.
-- [ ] Настроить логирование и мониторинг процесса.
-- [ ] Ограничить доступ к серверу фаерволом.
+- `GET /api/state`:
+  - admin: полный state,
+  - employee: только собственные данные (users/shifts/payouts/adjustments фильтруются).
+- `PUT /api/state`: только admin.
+- `POST /api/reset`: только admin (+ optional IP allowlist).
+- `POST /api/attendance/mark`: авторизованный пользователь.
 
 ---
 
-## Деплой на hosting.timeweb + привязка домена
+## HTTPS (обязательно для продакшена)
 
-Ниже инструкция для **Node.js размещения** (VDS/VPS или тариф с поддержкой Node-процессов).
+Рекомендуемая схема: Nginx reverse proxy + Let’s Encrypt.
 
-> Для «чистого» shared static hosting запуск Node backend обычно недоступен. В таком случае нужен VPS/VDS в Timeweb.
-
-### Шаг 1. Подготовьте сервер
-1. Создайте VDS в Timeweb.
-2. Подключитесь по SSH.
-3. Установите Node.js LTS (рекомендуется 20+).
-
-### Шаг 2. Загрузите проект
-Варианты:
-- `git clone` репозитория,
-- загрузка архивом,
-- SFTP.
-
-Допустим путь проекта:
-```bash
-/var/www/fullhub
-```
-
-### Шаг 3. Установите зависимости
-```bash
-cd /var/www/fullhub
-npm install --omit=dev
-```
-
-### Шаг 4. Запуск через PM2 (рекомендуется)
-```bash
-npm i -g pm2
-cd /var/www/fullhub
-JWT_SECRET='very-strong-secret' PORT=4173 pm2 start server.js --name fullhub
-pm2 save
-pm2 startup
-```
-
-Проверка:
-```bash
-pm2 status
-curl http://127.0.0.1:4173
-```
-
-### Шаг 5. Настройте Nginx reverse proxy
-Пример конфига `/etc/nginx/sites-available/fullhub.conf`:
-
+### Nginx (пример)
 ```nginx
 server {
     listen 80;
@@ -176,69 +130,129 @@ server {
 }
 ```
 
-Активируйте:
-```bash
-ln -s /etc/nginx/sites-available/fullhub.conf /etc/nginx/sites-enabled/fullhub.conf
-nginx -t
-systemctl reload nginx
-```
-
-### Шаг 6. Привязка домена
-В панели DNS (Timeweb или регистратор):
-- `A` запись для `@` → IP вашего VDS,
-- `A` или `CNAME` для `www`.
-
-Дождитесь распространения DNS.
-
-### Шаг 7. SSL (Let’s Encrypt)
+### Выпуск SSL
 ```bash
 apt-get update && apt-get install -y certbot python3-certbot-nginx
 certbot --nginx -d your-domain.ru -d www.your-domain.ru
 ```
 
-После этого включится HTTPS и редирект с HTTP.
+---
+
+## Резервное копирование БД
+
+Добавлен скрипт:
+- `scripts/backup_db.sh`
+
+Запуск вручную:
+```bash
+./scripts/backup_db.sh
+```
+
+По умолчанию бэкапы складываются в `/var/backups/fullhub`.
+
+Пример cron (ежедневно в 02:30):
+```cron
+30 2 * * * /var/www/fullhub/scripts/backup_db.sh >> /var/log/fullhub-backup.log 2>&1
+```
 
 ---
 
-## Бэкапы и обновления
+## Логирование и мониторинг процесса
 
-## Бэкап БД
-Минимально — ежедневная копия файла:
+- Access log пишется в `data/access.log`.
+- Audit log пишется в таблицу `audit_log`.
+- Health endpoint: `GET /api/health`.
+
+### Рекомендуемый запуск в проде
+Через PM2:
 ```bash
-cp /var/www/fullhub/data/fullhub.db /var/backups/fullhub-$(date +%F).db
-```
-
-Лучше добавить cron + ротацию.
-
-## Обновление релиза
-```bash
+npm i -g pm2
 cd /var/www/fullhub
-git pull
-npm install --omit=dev
-pm2 restart fullhub
+JWT_SECRET='super-strong-secret' PORT=4173 pm2 start server.js --name fullhub
+pm2 save
+pm2 startup
+```
+
+Мониторинг:
+```bash
+pm2 status
+pm2 logs fullhub
 ```
 
 ---
 
-## Диагностика
+## Ограничение доступа (фаервол)
 
-### Не логинится
-- Проверьте `JWT_SECRET` и актуальность кода (`pm2 logs fullhub`).
-- Убедитесь, что API отвечает: `curl http://127.0.0.1:4173/api/auth/me` (с токеном).
+Добавлен пример скрипта:
+- `scripts/firewall_ufw_example.sh`
 
-### Не применяются изменения в интерфейсе
-- Сделайте hard refresh (`Ctrl+F5`).
-- Проверьте, что Nginx проксирует на правильный порт.
-
-### Камера не открывается для QR
-- Убедитесь, что сайт открывается по HTTPS.
-- Проверьте browser permissions на камеру.
+Он настраивает UFW с политикой deny incoming и открывает только 22/80/443.
+Перед применением обязательно проверьте SSH-доступ.
 
 ---
 
-## Что улучшить дальше (enterprise roadmap)
-- Хранить пользователей/смены/финансы в нормализованных таблицах.
-- Хешировать пароли (`argon2`/`bcrypt`) вместо хранения в явном виде.
-- Разделить API-права (админ/сотрудник) на уровне endpoint-ов.
-- Добавить аудит действий и immutable-журнал изменений.
-- Добавить миграции БД, CI/CD, тесты API и e2e.
+## Миграции БД
+
+Миграции выполняются на старте сервера.
+Хранятся в `server.js` (`MIGRATIONS`) и фиксируются в таблице `schema_migrations`.
+
+---
+
+## Тесты и CI/CD
+
+### Локально
+```bash
+npm test
+```
+
+Проверяются:
+- health endpoint,
+- логин seeded admin.
+
+### CI
+Добавлен workflow:
+- `.github/workflows/ci.yml`
+
+Он выполняет:
+- `npm ci`
+- `node --check app.js`
+- `node --check server.js`
+- `npm test`
+
+---
+
+## Деплой на hosting.timeweb (VDS/VPS)
+
+### 1. Создать VDS
+В панели Timeweb создайте VDS, подключитесь по SSH.
+
+### 2. Развернуть проект
+```bash
+cd /var/www
+git clone <your-repo> fullhub
+cd fullhub
+npm install --omit=dev
+```
+
+### 3. Запустить backend
+```bash
+JWT_SECRET='super-strong-secret' PORT=4173 pm2 start server.js --name fullhub
+pm2 save
+```
+
+### 4. Привязка домена
+В DNS:
+- `A @ -> <IP VDS>`
+- `A/CNAME www -> @`
+
+### 5. Nginx + SSL
+Настроить reverse proxy и выпустить сертификат Let’s Encrypt.
+
+---
+
+## Что можно улучшать дальше
+
+- Вынести миграции в отдельную директорию/инструмент (umzug/knex migration).
+- Добавить refresh-token схему и ротацию ключей.
+- Добавить rate-limit на login.
+- Добавить e2e браузерные тесты в CI.

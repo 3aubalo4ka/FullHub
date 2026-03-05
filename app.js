@@ -200,10 +200,8 @@ function wireAuth() {
     render();
   };
 
-  el.resetDataBtn.onclick = async () => {
-    await fetch("/api/reset", { method: "POST" });
-    setAuthToken("");
-    window.location.reload();
+  el.resetDataBtn.onclick = () => {
+    alert("Сброс демо-данных доступен только администратору через защищенный backend endpoint /api/reset.");
   };
 }
 
@@ -1879,7 +1877,7 @@ function renderMyCabinet() {
         alert("Неверный QR-код. Используйте QR-код из панели администратора.");
         return;
       }
-      const msg = applyAttendanceMark(u.id);
+      const msg = await applyAttendanceMark(u.id);
       alert(msg);
       renderMyCabinet();
     };
@@ -2072,7 +2070,22 @@ function normalizeCheckInTime(timeHHMM) {
   return maxTimeHHMM(String(timeHHMM || "09:00"), "09:00");
 }
 
-function applyAttendanceMark(userId) {
+async function applyAttendanceMark(userId) {
+  if (authToken) {
+    try {
+      const payload = await apiRequest("/api/attendance/mark", {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      if (payload?.data) {
+        state.data = loadData(payload.data);
+      }
+      return String(payload?.message || "Отметка выполнена.");
+    } catch (e) {
+      return `Ошибка отметки: ${e.message || e}`;
+    }
+  }
+
   const user = state.data.users.find((u) => u.id === userId);
   if (!user) return "Пользователь не найден.";
 
