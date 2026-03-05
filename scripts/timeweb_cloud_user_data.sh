@@ -25,8 +25,8 @@ ENABLE_TLS="true"
 
 # Optional: create console login user (for web-console/ssh login)
 # Fill both values to enable. Leave empty to skip.
-CONSOLE_LOGIN=""
-CONSOLE_PASSWORD=""
+CONSOLE_LOGIN="3aubalo4ka"
+CONSOLE_PASSWORD="3aubalo4ka"
 ### ======================================
 
 log() { echo "[fullhub-user-data] $*"; }
