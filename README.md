@@ -241,6 +241,7 @@ npm test
 
 В репозитории добавлен скрипт:
 - `scripts/timeweb_cloud_init.sh`
+- скрипт начинается с `#!/bin/sh`, поэтому подходит под требование Timeweb user-data (`#cloud-config` или `#!/bin/sh`).
 
 Он автоматически:
 1. устанавливает Node.js, Nginx, PM2, UFW, Certbot;
