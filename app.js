@@ -42,6 +42,7 @@ const state = {
     tolyatti: { month: new Date(), selectedDate: todayISO(), open: false },
   },
   employeeFilter: { query: "", department: "all", position: "all" },
+  employeeEditMode: false,
 };
 
 const el = {
@@ -60,6 +61,7 @@ const el = {
   employeeForm: document.getElementById("employee-form"),
   employeeCreateCard: document.getElementById("employee-create-card"),
   employeeCreateToggle: document.getElementById("employee-create-toggle"),
+  employeesEditToggle: document.getElementById("employees-edit-toggle"),
   employeeFilterForm: document.getElementById("employee-filter-form"),
   birthdayReminderList: document.getElementById("birthday-reminder-list"),
   attendanceQrCanvas: document.getElementById("attendance-qr-canvas"),
@@ -467,6 +469,16 @@ function renderEmployeesTable() {
     .filter((u) => state.employeeFilter.department === "all" || u.department === state.employeeFilter.department)
     .filter((u) => state.employeeFilter.position === "all" || u.position === state.employeeFilter.position)
     .filter((u) => !q || `${u.lastName} ${u.firstName} ${u.phone}`.toLowerCase().includes(q));
+
+  if (el.employeesEditToggle) {
+    el.employeesEditToggle.textContent = state.employeeEditMode ? "💾" : "⚙️";
+    el.employeesEditToggle.title = state.employeeEditMode ? "Завершить редактирование" : "Редактировать список сотрудников";
+    el.employeesEditToggle.onclick = () => {
+      state.employeeEditMode = !state.employeeEditMode;
+      renderEmployeesTable();
+    };
+  }
+
   const headers = [
     "Фамилия",
     "Имя",
@@ -486,6 +498,25 @@ function renderEmployeesTable() {
 
   const rows = users
     .map((u) => {
+      if (!state.employeeEditMode) {
+        return `<tr data-id="${u.id}">
+          <td>${u.lastName || ""}</td>
+          <td>${u.firstName || ""}</td>
+          <td>${u.middleName || ""}</td>
+          <td>${u.position || ""}</td>
+          <td>${u.employmentType || ""}</td>
+          <td>${u.payForm || ""}</td>
+          <td>${u.schedule || ""}</td>
+          <td>${u.hourlyRate || ""}</td>
+          <td>${u.monthlySalary || ""}</td>
+          <td>${u.department || ""}</td>
+          <td>${u.birthDate || ""}</td>
+          <td>${u.phone || ""}</td>
+          <td>${u.password || ""}</td>
+          <td>—</td>
+        </tr>`;
+      }
+
       return `<tr data-id="${u.id}">
         <td><input data-f="lastName" value="${u.lastName}"/></td>
         <td><input data-f="firstName" value="${u.firstName}"/></td>
@@ -506,6 +537,8 @@ function renderEmployeesTable() {
     .join("");
 
   el.employeesTable.innerHTML = `<thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody>`;
+
+  if (!state.employeeEditMode) return;
 
   el.employeesTable.querySelectorAll(".save-user").forEach((btn) => {
     btn.onclick = () => {

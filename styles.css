@@ -250,24 +250,65 @@ select:focus {
   background: #fecaca;
 }
 
-#employees-table th:nth-child(1),
-#employees-table td:nth-child(1) { width: 6%; min-width: 78px; }
-#employees-table th:nth-child(2),
-#employees-table td:nth-child(2) { width: 6%; min-width: 74px; }
-#employees-table th:nth-child(3),
-#employees-table td:nth-child(3) { width: 6%; min-width: 78px; }
-#employees-table th:nth-child(7),
-#employees-table td:nth-child(7) { width: 3.5%; min-width: 52px; }
-#employees-table th:nth-child(8),
-#employees-table td:nth-child(8) { width: 4%; min-width: 62px; }
-#employees-table th:nth-child(11),
-#employees-table td:nth-child(11) { width: 6%; min-width: 84px; }
-#employees-table th:nth-child(12),
-#employees-table td:nth-child(12) { width: 4%; min-width: 62px; }
+
+.card-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 
 #employees-table {
-  table-layout: fixed;
-  min-width: 1000px;
+  table-layout: auto;
+  width: max-content;
+  min-width: 1820px;
+}
+
+#employees-table th,
+#employees-table td {
+  white-space: nowrap;
+}
+
+#employees-table th:nth-child(1),
+#employees-table td:nth-child(1),
+#employees-table th:nth-child(2),
+#employees-table td:nth-child(2),
+#employees-table th:nth-child(3),
+#employees-table td:nth-child(3) {
+  min-width: 140px;
+}
+
+#employees-table th:nth-child(4),
+#employees-table td:nth-child(4),
+#employees-table th:nth-child(5),
+#employees-table td:nth-child(5),
+#employees-table th:nth-child(6),
+#employees-table td:nth-child(6),
+#employees-table th:nth-child(7),
+#employees-table td:nth-child(7),
+#employees-table th:nth-child(10),
+#employees-table td:nth-child(10) {
+  min-width: 180px;
+}
+
+#employees-table th:nth-child(8),
+#employees-table td:nth-child(8),
+#employees-table th:nth-child(9),
+#employees-table td:nth-child(9) {
+  min-width: 120px;
+}
+
+#employees-table th:nth-child(11),
+#employees-table td:nth-child(11),
+#employees-table th:nth-child(12),
+#employees-table td:nth-child(12),
+#employees-table th:nth-child(13),
+#employees-table td:nth-child(13) {
+  min-width: 150px;
+}
+
+#employees-table th:nth-child(14),
+#employees-table td:nth-child(14) {
+  min-width: 200px;
 }
 
 #employees-table td input,
