@@ -273,6 +273,28 @@ npm test
 > Важно: если репозиторий приватный, задайте `GIT_TOKEN` в скрипте (лучше временный токен с минимальными правами).
 
 ---
+
+### Новый рекомендуемый user-data скрипт (исправленный)
+
+Добавлен новый скрипт, который решает типичный кейс со страницей **"Welcome to nginx"**:
+- `scripts/timeweb_cloud_user_data.sh`
+- начинается с `#!/bin/sh` (валидно для Timeweb user-data).
+
+Что дополнительно исправляет:
+- гарантированно отключает default nginx-конфиг,
+- включает reverse-proxy на FullHub backend,
+- запускает backend через `systemd` (`fullhub.service`),
+- может создать отдельного пользователя для входа в консоль сервера (по переменным `CONSOLE_LOGIN` и `CONSOLE_PASSWORD`).
+
+Для вашего кейса уже зашит репозиторий:
+- `https://github.com/3aubalo4ka/FullHub.git`
+
+Перед запуском заполните в скрипте:
+- `CONSOLE_LOGIN`
+- `CONSOLE_PASSWORD`
+
+Это будут логин/пароль для входа в ОС сервера (web-console/SSH), а не логин в веб-приложение.
+
 ## Деплой на hosting.timeweb (VDS/VPS)
 
 ### 1. Создать VDS
