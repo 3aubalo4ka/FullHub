@@ -18,8 +18,8 @@ REPO_BRANCH="main"
 GIT_TOKEN=""
 
 # Domain and TLS
-DOMAIN="example.com"
-EMAIL="admin@example.com"
+DOMAIN="fullhub.website"
+EMAIL="admin@fullhub.website"
 ENABLE_TLS="true"
 
 # JWT secret (MUST be strong; if empty - generated automatically)
@@ -150,7 +150,7 @@ enable_tls() {
     return
   fi
 
-  if [[ "${DOMAIN}" == "example.com" ]]; then
+  if [[ -z "${DOMAIN}" ]]; then
     log "Skipping TLS because DOMAIN is not set"
     return
   fi

@@ -257,6 +257,8 @@ npm test
 1. При создании «Облачного сервера» выберите **Ubuntu 24.04 LTS**.
 2. В поле user-data вставьте скрипт `scripts/timeweb_cloud_init.sh`.
 3. Перед вставкой обязательно поменяйте значения в блоке `CONFIGURE THESE VALUES`:
+
+   Для вашего кейса домен уже зафиксирован: `fullhub.website` (и `www.fullhub.website`).
    - `REPO_URL`
    - `REPO_BRANCH`
    - `DOMAIN`
