@@ -1,5 +1,6 @@
 const APP_VERSION = "2026.02.27-v4";
 const STORAGE_KEY = "fullhub-data-v4";
+const AUTH_TOKEN_KEY = "fullhub-auth-token";
 const SHIFT_HOURS_STANDARD = 9;
 const NDFL_RATE = 0.13;
 const ATTENDANCE_QR_PREFIX = "FULLHUB_ATTENDANCE";
@@ -16,7 +17,7 @@ const roleClassByPosition = {
 };
 
 const state = {
-  data: loadData(),
+  data: emptyData(),
   currentUser: null,
   selectedDate: todayISO(),
   viewMonth: new Date(),
@@ -120,41 +121,88 @@ const el = {
   },
 };
 
+let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
+let persistInFlight = Promise.resolve();
+
+function setAuthToken(token) {
+  authToken = token || "";
+  if (authToken) localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+  else localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const res = await fetch(path, { ...options, headers });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.error) msg = body.error;
+    } catch (e) {
+      // ignore
+    }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 init();
 
-function init() {
-  clearLegacyStorageKeys();
+async function init() {
   if (el.appVersionPill) el.appVersionPill.textContent = `Версия: ${APP_VERSION}`;
   wireAuth();
   wireTabs();
   wireDictEditor();
   wireEmployeeCreateToggle();
   wireWorkDaysEditor();
+
+  if (authToken) {
+    try {
+      const me = await apiRequest("/api/auth/me");
+      state.currentUser = me.user;
+      const payload = await apiRequest("/api/state");
+      state.data = loadData(payload.data || null);
+    } catch (e) {
+      setAuthToken("");
+      state.currentUser = null;
+      state.data = loadData(null);
+    }
+  } else {
+    state.data = loadData(null);
+  }
+
   render();
 }
 
 function wireAuth() {
-  el.loginForm.addEventListener("submit", (e) => {
+  el.loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const user = state.data.users.find(
-      (u) => u.phone === el.phone.value.trim() && u.password === el.pass.value.trim()
-    );
-    if (!user) {
-      el.loginError.textContent = "Неверный логин или пароль";
-      return;
+    try {
+      const payload = await apiRequest("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ phone: el.phone.value.trim(), password: el.pass.value.trim() }),
+      });
+      setAuthToken(payload.token || "");
+      state.currentUser = payload.user;
+      const statePayload = await apiRequest("/api/state");
+      state.data = loadData(statePayload.data || null);
+      el.loginError.textContent = "";
+      render();
+    } catch (err) {
+      el.loginError.textContent = String(err.message || "Неверный логин или пароль");
     }
-    el.loginError.textContent = "";
-    state.currentUser = user;
-    render();
   });
   el.logout.onclick = () => {
+    setAuthToken("");
     state.currentUser = null;
     el.pass.value = "";
     render();
   };
 
-  el.resetDataBtn.onclick = () => {
-    clearLegacyStorageKeys(true);
+  el.resetDataBtn.onclick = async () => {
+    await fetch("/api/reset", { method: "POST" });
+    setAuthToken("");
     window.location.reload();
   };
 }
@@ -2109,8 +2157,12 @@ async function scanAttendanceQrToken() {
   });
 }
 
-function loadData() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+function emptyData() {
+  return loadData(null);
+}
+
+function loadData(rawInput = null) {
+  const raw = rawInput ? JSON.stringify(rawInput) : null;
   const base = {
     dictionaries: {
       positions: ["Грузчик", "Кладовщик", "Упаковщик", "Водитель"],
@@ -2322,17 +2374,17 @@ function formatDateRU(iso) {
   return `${Number(d)} ${names[Number(m) - 1]} ${y}`;
 }
 
-function clearLegacyStorageKeys(force = false) {
-  const keys = Object.keys(localStorage).filter((k) => k.startsWith("fullhub-data-v"));
-  if (!keys.length) return;
-  if (!force && keys.length === 1 && keys[0] === STORAGE_KEY) return;
-  keys.forEach((k) => {
-    if (force || k !== STORAGE_KEY) localStorage.removeItem(k);
-  });
+function clearLegacyStorageKeys() {
+  // localStorage data storage is deprecated in backend mode
 }
 
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  if (!authToken) return;
+  persistInFlight = persistInFlight
+    .then(() => apiRequest("/api/state", { method: "PUT", body: JSON.stringify({ data: state.data }) }))
+    .catch((e) => {
+      console.error("Persist error:", e);
+    });
 }
 
 function todayISO() {
