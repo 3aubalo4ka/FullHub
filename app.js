@@ -31,6 +31,7 @@ const state = {
   workDaysEditMode: false,
   workDaysYear: new Date().getFullYear(),
   workDaysPanelOpen: false,
+  financeHistoryPanelOpen: false,
   dictEditMode: false,
   dictionaryDraft: null,
   shiftGroup: "samara",
@@ -82,6 +83,8 @@ const el = {
   openShiftsTable: document.getElementById("open-shifts-table"),
   openShiftsOpenBtn: document.getElementById("open-shifts-open-btn"),
   openShiftsCloseBtn: document.getElementById("open-shifts-close-btn"),
+  openShiftsOpenTime: document.getElementById("open-shifts-open-time"),
+  openShiftsCloseTime: document.getElementById("open-shifts-close-time"),
   holidayDaysToggle: document.getElementById("holiday-days-toggle"),
   holidayDaysContent: document.getElementById("holiday-days-content"),
   holidayDaysForm: document.getElementById("holiday-days-form"),
@@ -95,6 +98,8 @@ const el = {
   workDaysGrid: document.getElementById("workdays-grid"),
   financeHistoryTitle: document.getElementById("finance-history-title"),
   financeHistoryTable: document.getElementById("finance-history-table"),
+  financeHistoryToggle: document.getElementById("finance-history-toggle"),
+  financeHistoryContent: document.getElementById("finance-history-content"),
   myProfile: document.getElementById("employee-profile"),
   myShifts: document.getElementById("my-shifts-table"),
   myMoneyHistory: document.getElementById("my-money-history-table"),
@@ -1226,11 +1231,11 @@ function renderOpenShiftsAdmin() {
 
   if (el.openShiftsOpenBtn) {
     el.openShiftsOpenBtn.onclick = () => {
-      const now = nowTimeHHMM();
+      const openTime = String(el.openShiftsOpenTime?.value || nowTimeHHMM());
       state.data.shifts.forEach((s) => {
         if (!state.openShiftsSelection.includes(s.id)) return;
-        if (!s.actualStart) s.actualStart = now;
-        if (!s.start) s.start = normalizeCheckInTime(now);
+        if (!s.actualStart) s.actualStart = openTime;
+        if (!s.start) s.start = normalizeCheckInTime(openTime);
       });
       persist();
       renderOpenShiftsAdmin();
@@ -1240,12 +1245,13 @@ function renderOpenShiftsAdmin() {
 
   if (el.openShiftsCloseBtn) {
     el.openShiftsCloseBtn.onclick = () => {
-      const now = nowTimeHHMM();
+      const openTime = String(el.openShiftsOpenTime?.value || nowTimeHHMM());
+      const closeTime = String(el.openShiftsCloseTime?.value || nowTimeHHMM());
       state.data.shifts.forEach((s) => {
         if (!state.openShiftsSelection.includes(s.id)) return;
-        if (!s.actualStart) s.actualStart = normalizeCheckInTime(now);
-        if (!s.actualEnd) s.actualEnd = now;
-        s.end = now;
+        if (!s.actualStart) s.actualStart = normalizeCheckInTime(openTime);
+        if (!s.actualEnd) s.actualEnd = closeTime;
+        s.end = closeTime;
       });
       persist();
       renderOpenShiftsAdmin();
@@ -1757,6 +1763,17 @@ function renderMyCabinet() {
 }
 
 function renderFinanceHistory() {
+  if (el.financeHistoryToggle && el.financeHistoryContent) {
+    el.financeHistoryToggle.textContent = state.financeHistoryPanelOpen ? "скрыть" : "открыть";
+    el.financeHistoryContent.classList.toggle("hidden", !state.financeHistoryPanelOpen);
+    el.financeHistoryToggle.onclick = () => {
+      state.financeHistoryPanelOpen = !state.financeHistoryPanelOpen;
+      renderFinanceHistory();
+    };
+  }
+
+  if (!state.financeHistoryPanelOpen) return;
+
   const f = state.data.financeFilter;
   const period = getFinancePeriod();
   const monthStart = period.start;
