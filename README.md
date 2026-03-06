@@ -276,6 +276,39 @@ curl -I http://127.0.0.1:4173/api/health
 
 Если снова увидите `Welcome to nginx`, пришлите вывод этих команд — по ним быстро локализуется проблема.
 
+## Простой деплой на Timeweb без `cloud-init` (пошагово)
+
+Если `user-data`/`cloud-init` пока неудобны, используйте ручной деплой.
+
+### 1) Подключение и рабочая директория
+```bash
+ssh <user>@<server-ip>
+cd ~
+git clone https://github.com/3aubalo4ka/FullHub.git
+cd FullHub
+```
+
+### 2) Установка зависимостей и запуск
+```bash
+npm install --omit=dev
+JWT_SECRET='replace-with-very-strong-secret-min-32-chars' PORT=4173 npm start
+```
+
+### 3) Проверка API
+```bash
+curl http://127.0.0.1:4173/api/health
+```
+
+### 4) Если запуск успешный — переведите процесс в фон
+```bash
+npm i -g pm2
+JWT_SECRET='replace-with-very-strong-secret-min-32-chars' PORT=4173 pm2 start server.js --name fullhub
+pm2 save
+```
+
+### Частая ошибка: `Permission denied` при `cd /var/www`
+Обычно это означает, что у пользователя нет прав на системный каталог. Для первого запуска используйте домашнюю директорию (`~/FullHub`) или работайте через `sudo`/`/opt/fullhub`.
+
 ## Деплой на hosting.timeweb (VDS/VPS)
 
 ### 1. Создать VDS
