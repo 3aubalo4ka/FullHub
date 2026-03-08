@@ -52,6 +52,7 @@ const el = {
   appShell: document.getElementById("app-shell"),
   loginForm: document.getElementById("login-form"),
   loginError: document.getElementById("login-error"),
+  openLoginBtn: document.getElementById("open-login-btn"),
   resetDataBtn: document.getElementById("reset-data-btn"),
   appVersionPill: document.getElementById("app-version-pill"),
   phone: document.getElementById("login-phone"),
@@ -150,7 +151,6 @@ async function apiRequest(path, options = {}) {
 init();
 
 async function init() {
-  if (el.appVersionPill) el.appVersionPill.textContent = `Версия: ${APP_VERSION}`;
   wireAuth();
   wireTabs();
   wireDictEditor();
@@ -176,6 +176,14 @@ async function init() {
 }
 
 function wireAuth() {
+  if (el.openLoginBtn && el.loginForm) {
+    el.openLoginBtn.onclick = () => {
+      el.openLoginBtn.classList.add("hidden");
+      el.loginForm.classList.remove("hidden");
+      if (el.phone) el.phone.focus();
+    };
+  }
+
   el.loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
@@ -197,12 +205,16 @@ function wireAuth() {
     setAuthToken("");
     state.currentUser = null;
     el.pass.value = "";
+    if (el.loginForm) el.loginForm.classList.add("hidden");
+    if (el.openLoginBtn) el.openLoginBtn.classList.remove("hidden");
     render();
   };
 
-  el.resetDataBtn.onclick = () => {
-    alert("Сброс демо-данных доступен только администратору через защищенный backend endpoint /api/reset.");
-  };
+  if (el.resetDataBtn) {
+    el.resetDataBtn.onclick = () => {
+      alert("Сброс демо-данных доступен только администратору через защищенный backend endpoint /api/reset.");
+    };
+  }
 }
 
 function wireDictEditor() {

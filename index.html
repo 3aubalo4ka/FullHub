@@ -14,7 +14,6 @@
           <div class="auth-logo-box" aria-hidden="true">📦</div>
           <h1>FullHub</h1>
           <p class="auth-subtitle">Корпоративная система для сотрудников Фулфилмента</p>
-          <p class="version-pill" id="app-version-pill">Версия: загрузка...</p>
         </div>
 
         <div class="auth-feature-list" aria-hidden="true">
@@ -33,7 +32,9 @@
           </div>
         </div>
 
-        <form id="login-form" class="stack auth-login-form">
+        <button type="button" id="open-login-btn" class="btn auth-open-login-btn">Войти в личный кабинет</button>
+
+        <form id="login-form" class="stack auth-login-form hidden">
           <label>
             Логин (телефон)
             <input id="login-phone" required placeholder="79990000000" />
@@ -43,7 +44,6 @@
             <input id="login-password" type="password" required placeholder="••••••••" />
           </label>
           <button type="submit" class="btn auth-enter-btn">🥋 Войти в личный кабинет</button>
-          <button type="button" id="reset-data-btn" class="btn btn-secondary auth-reset-btn">Сбросить локальные данные</button>
           <p class="error" id="login-error"></p>
         </form>
       </section>

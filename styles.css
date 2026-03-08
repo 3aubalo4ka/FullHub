@@ -120,6 +120,23 @@ body {
   font-weight: 600;
 }
 
+
+.auth-open-login-btn {
+  width: 100%;
+  background: #f8fafc;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: clamp(1.45rem, 5.2vw, 2.25rem);
+  font-weight: 500;
+  padding: 1.05rem 1rem;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.26);
+}
+
+.auth-open-login-btn:hover {
+  background: #f1f5f9;
+}
+
 .auth-login-form {
   background: #ffffff;
   border-radius: 18px;
