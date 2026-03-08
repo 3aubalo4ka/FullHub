@@ -306,14 +306,11 @@ function applyAttendanceMarkForUser(userId) {
   const now = nowTimeHHMM();
   if (!shift.actualStart) {
     shift.actualStart = now;
-    const effectiveStart = normalizeCheckInTime(now);
-    shift.start = effectiveStart;
     replaceStateFromPayload(state);
-    return { message: `Начало смены зафиксировано: ${now}${effectiveStart !== now ? ` (в расчет пошло ${effectiveStart})` : ""}`, state: readState() };
+    return { message: `Начало смены зафиксировано: ${now}`, state: readState() };
   }
   if (!shift.actualEnd) {
     shift.actualEnd = now;
-    shift.end = now;
     replaceStateFromPayload(state);
     return { message: `Окончание смены зафиксировано: ${now}`, state: readState() };
   }

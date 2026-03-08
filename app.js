@@ -1609,8 +1609,12 @@ function buildAnalyticsData(filter) {
   const inRange = (iso) => iso >= from && iso <= to;
   const byEmployee = users.map((u) => {
     const shifts = state.data.shifts.filter((s) => s.userId === u.id && inRange(s.date));
-    const hours = shifts.reduce((acc, s) => acc + hoursBetween(s.start, s.end), 0);
-    const gross = shifts.reduce((acc, s) => acc + calculateShiftPay(s, u, s.date.slice(0, 7)), 0);
+    const closedShifts = shifts.filter(isShiftClosedForPayroll);
+    const hours = closedShifts.reduce((acc, s) => {
+      const times = getShiftPayrollTimes(s);
+      return acc + (times ? hoursBetween(times.start, times.end) : 0);
+    }, 0);
+    const gross = closedShifts.reduce((acc, s) => acc + calculateShiftPay(s, u, s.date.slice(0, 7)), 0);
     const bonuses = state.data.adjustments
       .filter((a) => a.userId === u.id)
       .filter((a) => {
@@ -1630,15 +1634,15 @@ function buildAnalyticsData(filter) {
       .filter((p) => inRange((p.date || `${p.month || monthISO(new Date())}-01`).slice(0, 10)))
       .reduce((acc, p) => acc + Number(p.amount || 0), 0);
 
-    const late = shifts.filter((s) => s.actualStart && s.actualStart > "09:00").length;
-    const closedByQr = shifts.filter((s) => s.actualStart && s.actualEnd).length;
+    const late = closedShifts.filter((s) => s.actualStart && s.actualStart > "09:00").length;
+    const closedByQr = closedShifts.length;
 
     return {
       userId: u.id,
       lastName: u.lastName,
       firstName: u.firstName,
       department: u.department,
-      shifts: shifts.length,
+      shifts: closedShifts.length,
       hours,
       gross,
       paid,
@@ -1712,10 +1716,14 @@ function computeMonthlyMetrics(user, month, monthStart, monthEnd) {
     .filter((s) => {
       const d = new Date(s.date);
       return d >= monthStart && d <= monthEnd;
-    });
+    })
+    .filter(isShiftClosedForPayroll);
 
   const shiftCount = shifts.length;
-  const hours = shifts.reduce((acc, s) => acc + hoursBetween(s.start, s.end), 0);
+  const hours = shifts.reduce((acc, s) => {
+    const times = getShiftPayrollTimes(s);
+    return acc + (times ? hoursBetween(times.start, times.end) : 0);
+  }, 0);
   const gross = shifts.reduce((acc, s) => acc + calculateShiftPay(s, user, month), 0);
 
   const monthAdjustments = state.data.adjustments.filter(
@@ -1759,16 +1767,27 @@ function shiftMultiplier(shift) {
   return isHolidayDate(shift.date) ? 2 : 1;
 }
 
+function getShiftPayrollTimes(shift) {
+  if (!shift || !shift.actualStart || !shift.actualEnd) return null;
+  return { start: shift.actualStart, end: shift.actualEnd };
+}
+
+function isShiftClosedForPayroll(shift) {
+  return Boolean(getShiftPayrollTimes(shift));
+}
+
 function calculateShiftPay(shift, user, month) {
+  const times = getShiftPayrollTimes(shift);
+  if (!times) return 0;
   if (user.payForm === "Сдельная") return Number(shift.pieceAmount || 0);
   if (user.payForm === "Часовая") {
-    return hoursBetween(shift.start, shift.end) * Number(user.hourlyRate || 0);
+    return hoursBetween(times.start, times.end) * Number(user.hourlyRate || 0);
   }
   const workDays = Number(state.data.workDaysByMonth[month] || 0);
   if (workDays <= 0) return 0;
   const hourlyRate = Number(user.monthlySalary || 0) / workDays / SHIFT_HOURS_STANDARD;
   const k = shiftMultiplier(shift);
-  return hoursBetween(shift.start, shift.end) * hourlyRate * k;
+  return hoursBetween(times.start, times.end) * hourlyRate * k;
 }
 
 function renderMyCabinet() {
@@ -1987,6 +2006,7 @@ function buildMoneyHistoryEntries(user, month, monthStart, monthEnd) {
       const d = new Date(s.date);
       return d >= monthStart && d <= monthEnd;
     })
+    .filter(isShiftClosedForPayroll)
     .map((s) => ({
       date: s.date,
       type: "Начисление за смену",
@@ -2182,15 +2202,12 @@ async function applyAttendanceMark(userId) {
   const now = nowTimeHHMM();
   if (!shift.actualStart) {
     shift.actualStart = now;
-    const effectiveStart = normalizeCheckInTime(now);
-    shift.start = effectiveStart;
     persist();
-    return `Начало смены зафиксировано: ${now}${effectiveStart !== now ? ` (в расчет пошло ${effectiveStart})` : ""}`;
+    return `Начало смены зафиксировано: ${now}`;
   }
 
   if (!shift.actualEnd) {
     shift.actualEnd = now;
-    shift.end = now;
     persist();
     return `Окончание смены зафиксировано: ${now}`;
   }
