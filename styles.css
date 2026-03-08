@@ -18,7 +18,10 @@
 body {
   margin: 0;
   color: var(--text);
-  background: radial-gradient(circle at 50% 0%, #111827 0%, #020617 60%);
+  background:
+    radial-gradient(circle at 5% 0%, #dbeafe 0%, transparent 30%),
+    radial-gradient(circle at 95% 0%, #e9d5ff 0%, transparent 25%),
+    var(--bg);
   overflow-x: hidden;
 }
 
