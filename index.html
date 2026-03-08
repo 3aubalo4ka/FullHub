@@ -9,11 +9,31 @@
   </head>
   <body>
     <main class="auth-shell" id="auth-shell">
-      <section class="auth-card">
-        <h1>FullHub</h1>
-        <p>Корпоративный портал компании</p>
-        <p class="version-pill" id="app-version-pill">Версия: загрузка...</p>
-        <form id="login-form" class="stack">
+      <section class="auth-card auth-proto">
+        <div class="auth-hero">
+          <div class="auth-logo-box" aria-hidden="true">📦</div>
+          <h1>FullHub</h1>
+          <p class="auth-subtitle">Корпоративная система для сотрудников Фулфилмента</p>
+          <p class="version-pill" id="app-version-pill">Версия: загрузка...</p>
+        </div>
+
+        <div class="auth-feature-list" aria-hidden="true">
+          <div class="auth-feature-row">
+            <span class="auth-feature-icon">👥</span>
+            <span class="auth-feature-text">График смен</span>
+            <span class="auth-feature-icon">❔</span>
+          </div>
+          <div class="auth-feature-row">
+            <span class="auth-feature-icon">⚡</span>
+            <span class="auth-feature-text">Учет рабочего времени</span>
+          </div>
+          <div class="auth-feature-row">
+            <span class="auth-feature-icon">💲</span>
+            <span class="auth-feature-text">Расчет заработной платы</span>
+          </div>
+        </div>
+
+        <form id="login-form" class="stack auth-login-form">
           <label>
             Логин (телефон)
             <input id="login-phone" required placeholder="79990000000" />
@@ -22,8 +42,8 @@
             Пароль
             <input id="login-password" type="password" required placeholder="••••••••" />
           </label>
-          <button type="submit" class="btn btn-primary">Войти</button>
-          <button type="button" id="reset-data-btn" class="btn btn-secondary">Сбросить локальные данные</button>
+          <button type="submit" class="btn auth-enter-btn">🥋 Войти в личный кабинет</button>
+          <button type="button" id="reset-data-btn" class="btn btn-secondary auth-reset-btn">Сбросить локальные данные</button>
           <p class="error" id="login-error"></p>
         </form>
       </section>
