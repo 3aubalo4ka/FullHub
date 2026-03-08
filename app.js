@@ -2150,7 +2150,15 @@ function isAttendanceTokenValid(token) {
 }
 
 function nowTimeHHMM() {
-  return new Date().toTimeString().slice(0, 5);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Samara",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const hh = parts.find((p) => p.type === "hour")?.value || "00";
+  const mm = parts.find((p) => p.type === "minute")?.value || "00";
+  return `${hh}:${mm}`;
 }
 
 function maxTimeHHMM(a, b) {

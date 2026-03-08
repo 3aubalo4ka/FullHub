@@ -286,7 +286,17 @@ function ensureSeedData() {
   replaceStateFromPayload(baseSeedData());
 }
 
-function nowTimeHHMM() { return new Date().toTimeString().slice(0, 5); }
+function nowTimeHHMM() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Samara",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const hh = parts.find((p) => p.type === "hour")?.value || "00";
+  const mm = parts.find((p) => p.type === "minute")?.value || "00";
+  return `${hh}:${mm}`;
+}
 function maxTimeHHMM(a, b) { return a >= b ? a : b; }
 function normalizeCheckInTime(timeHHMM) { return maxTimeHHMM(String(timeHHMM || "09:00"), "09:00"); }
 
