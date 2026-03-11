@@ -2251,12 +2251,14 @@ async function applyAttendanceMark(userId) {
   const now = nowTimeHHMM();
   if (!shift.actualStart) {
     shift.actualStart = now;
+    shift.start = now;
     persist();
     return `Начало смены зафиксировано: ${now}`;
   }
 
   if (!shift.actualEnd) {
     shift.actualEnd = now;
+    shift.end = now;
     persist();
     return `Окончание смены зафиксировано: ${now}`;
   }

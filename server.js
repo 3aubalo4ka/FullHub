@@ -185,6 +185,7 @@ function baseSeedData() {
     analyticsFilter: { from: monthBounds(monthISO(new Date())).from, to: monthBounds(monthISO(new Date())).to, department: "Все отделы", employeeId: "all" },
     openShiftsFilter: { mode: "day", day: dateISO(new Date()), from: dateISO(new Date()), to: dateISO(new Date()) },
     autoFineSettings: { windowStart: "08:00", windowEnd: "08:50", perMinute: 20 },
+    shiftSuppressions: [],
   };
 }
 
@@ -237,6 +238,7 @@ function replaceStateFromPayload(payload) {
     insSetting.run("analyticsFilter", JSON.stringify(p.analyticsFilter || {}));
     insSetting.run("openShiftsFilter", JSON.stringify(p.openShiftsFilter || {}));
     insSetting.run("autoFineSettings", JSON.stringify(p.autoFineSettings || { windowStart: "08:00", windowEnd: "08:50", perMinute: 20 }));
+    insSetting.run("shiftSuppressions", JSON.stringify(p.shiftSuppressions || []));
   });
   tx(payload);
 }
@@ -277,6 +279,7 @@ function readState() {
     openShiftsFilter: settings.openShiftsFilter || { mode: "day", day: dateISO(new Date()), from: dateISO(new Date()), to: dateISO(new Date()) },
     holidayDays,
     autoFineSettings: settings.autoFineSettings || { windowStart: "08:00", windowEnd: "08:50", perMinute: 20 },
+    shiftSuppressions: Array.isArray(settings.shiftSuppressions) ? settings.shiftSuppressions : [],
   };
 }
 
@@ -316,11 +319,13 @@ function applyAttendanceMarkForUser(userId) {
   const now = nowTimeHHMM();
   if (!shift.actualStart) {
     shift.actualStart = now;
+    shift.start = now;
     replaceStateFromPayload(state);
     return { message: `Начало смены зафиксировано: ${now}`, state: readState() };
   }
   if (!shift.actualEnd) {
     shift.actualEnd = now;
+    shift.end = now;
     replaceStateFromPayload(state);
     return { message: `Окончание смены зафиксировано: ${now}`, state: readState() };
   }
