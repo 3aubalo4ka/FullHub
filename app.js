@@ -674,6 +674,15 @@ function getEmployeesByDepartment(department) {
   return state.data.users.filter((u) => u.role === "employee" && u.department === department);
 }
 
+function renderShiftBlockContent(block) {
+  const view = state.shiftViews[block.key];
+  const selectedDateEl = el.shiftsBlocks.querySelector(`[data-selected-date="${block.key}"]`);
+  if (selectedDateEl && view?.selectedDate) selectedDateEl.textContent = view.selectedDate;
+  renderCalendarForBlock(block);
+  renderShiftFormForBlock(block);
+  renderDayShiftsForBlock(block);
+}
+
 function renderShiftBlocks() {
   if (!el.shiftsBlocks) return;
   ensureScheduledShiftsForVisibleMonths();
@@ -718,9 +727,7 @@ function renderShiftBlocks() {
   blocks.forEach((b) => {
     const view = state.shiftViews[b.key];
     if (b.collapsible && !view.open) return;
-    renderCalendarForBlock(b);
-    renderShiftFormForBlock(b);
-    renderDayShiftsForBlock(b);
+    renderShiftBlockContent(b);
   });
 }
 
@@ -837,14 +844,14 @@ function renderCalendarForBlock(block) {
       chip.onclick = (e) => {
         e.stopPropagation();
         view.selectedDate = iso;
-        renderShiftBlocks();
+        renderShiftBlockContent(block);
       };
       day.appendChild(chip);
     });
 
     day.onclick = () => {
       view.selectedDate = iso;
-      renderShiftBlocks();
+      renderShiftBlockContent(block);
     };
     cal.appendChild(day);
   }
@@ -901,7 +908,7 @@ function renderShiftFormForBlock(block) {
     removeShiftSuppression(user.id, view.selectedDate);
 
     persist();
-    renderShiftBlocks();
+    renderShiftBlockContent(block);
   };
 }
 
@@ -937,7 +944,7 @@ function renderDayShiftsForBlock(block) {
       if (end && !end.disabled) s.end = String(end.value || "18:00");
       if (piece && !piece.disabled) s.pieceAmount = Number(piece.value || 0);
       persist();
-      renderShiftBlocks();
+      renderShiftBlockContent(block);
     };
   });
 
@@ -953,7 +960,7 @@ function renderDayShiftsForBlock(block) {
       }
       state.data.shifts = state.data.shifts.filter((s) => s.id !== id);
       persist();
-      renderShiftBlocks();
+      renderShiftBlockContent(block);
     };
   });
 }
