@@ -1884,6 +1884,9 @@ function renderMyCabinet() {
   state.employeeEarningsRange = earningsRange;
   const earnings = computeEmployeeEarningsForRange(u, earningsRange.from, earningsRange.to);
   const earningsBars = buildEmployeeEarningsBars(earnings.series);
+  const weekStats = computeEmployeeWeeklyStats(u);
+  const weekEarningsChart = buildWeeklyStatsBars(weekStats.days, "earnings");
+  const weekHoursChart = buildWeeklyStatsBars(weekStats.days, "hours");
   el.myProfile.innerHTML = `
     <div class="cabinet-hero">
       <div>
@@ -1895,6 +1898,44 @@ function renderMyCabinet() {
         <span class="cabinet-badge">График: ${u.schedule || "—"}</span>
       </div>
     </div>
+
+    <section class="employee-stats-screen">
+      <div class="stats-screen-head">
+        <h3>Статистика</h3>
+        <div class="stats-screen-icons">
+          <span>🪪</span>
+          <span>❔</span>
+        </div>
+      </div>
+      <div class="stats-block-title">🪙 Заработок</div>
+      <div class="stats-week-card">
+        <div class="stats-week-top">
+          <div>
+            <div class="stats-week-total">${weekStats.totalEarnings.toFixed(2)} ₽</div>
+            <div class="dict-hint">Всего за неделю</div>
+          </div>
+          <div class="stats-week-arrow">›</div>
+        </div>
+        ${weekEarningsChart}
+      </div>
+      <div class="stats-block-title">⏰ Рабочие часы</div>
+      <div class="stats-week-card">
+        <div class="stats-week-top">
+          <div>
+            <div class="stats-week-total">${formatHoursLabel(weekStats.totalHours)}</div>
+            <div class="dict-hint">Всего за неделю</div>
+          </div>
+          <div class="stats-week-arrow">›</div>
+        </div>
+        ${weekHoursChart}
+      </div>
+      <div class="stats-bottom-nav">
+        <span>Календарь</span>
+        <span>Смены</span>
+        <span class="active">Статистика</span>
+        <span>Настройки</span>
+      </div>
+    </section>
 
     <div class="cabinet-section">
       <button class="cabinet-section-toggle" type="button" id="cab-profile-toggle">${p.profile ? "скрыть" : "открыть"} • Профиль и настройки периода</button>
@@ -2112,6 +2153,69 @@ function buildEmployeeEarningsBars(series) {
       </div>`;
     })
     .join("");
+}
+
+function computeEmployeeWeeklyStats(user) {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+  const dayList = [...Array(7)].map((_, idx) => {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+    return {
+      iso: toISODateLocal(d),
+      shortLabel: ["пн", "вт", "ср", "чт", "пт", "сб", "вс"][idx],
+      earnings: 0,
+      hours: 0,
+    };
+  });
+  const dayMap = new Map(dayList.map((item) => [item.iso, item]));
+
+  state.data.shifts
+    .filter((s) => s.userId === user.id)
+    .filter((s) => dayMap.has(s.date))
+    .filter(isShiftClosedForPayroll)
+    .forEach((shift) => {
+      const dayItem = dayMap.get(shift.date);
+      const month = shift.date.slice(0, 7);
+      dayItem.earnings += calculateShiftPay(shift, user, month);
+      const times = getShiftPayrollTimes(shift);
+      dayItem.hours += times ? hoursBetween(times.start, times.end) : 0;
+    });
+
+  const totalEarnings = dayList.reduce((acc, item) => acc + item.earnings, 0);
+  const totalHours = dayList.reduce((acc, item) => acc + item.hours, 0);
+  return { days: dayList, totalEarnings, totalHours };
+}
+
+function buildWeeklyStatsBars(days, metric) {
+  const max = Math.max(...days.map((item) => Number(item[metric] || 0)), 0);
+  const topValue = metric === "earnings" ? Math.max(4000, Math.ceil(max / 1000) * 1000) : Math.max(10, Math.ceil(max));
+  const midValue = metric === "earnings" ? topValue / 2 : Math.round(topValue / 2);
+  const formatAxis = (v) => (metric === "earnings" ? v.toLocaleString("ru-RU") : String(v));
+  return `<div class="stats-chart-wrap">
+    <div class="stats-axis-label axis-top">${formatAxis(topValue)}</div>
+    <div class="stats-axis-label axis-mid">${formatAxis(midValue)}</div>
+    <div class="stats-axis-label axis-zero">0</div>
+    <div class="stats-grid-line top"></div>
+    <div class="stats-grid-line mid"></div>
+    <div class="stats-bars">${days
+      .map((item) => {
+        const value = Number(item[metric] || 0);
+        const h = topValue > 0 ? Math.max(2, Math.round((value / topValue) * 150)) : 2;
+        return `<div class="stats-bar-col">
+          <div class="stats-bar ${metric}" style="height:${h}px"></div>
+          <div class="stats-bar-day">${item.shortLabel}</div>
+        </div>`;
+      })
+      .join("")}</div>
+  </div>`;
+}
+
+function formatHoursLabel(hours) {
+  const h = Math.floor(hours);
+  const min = Math.round((hours - h) * 60);
+  return `${h}ч ${String(min).padStart(2, "0")}мин`;
 }
 
 function renderFinanceHistory() {

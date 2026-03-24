@@ -312,6 +312,151 @@ select:focus {
   margin-top: 0.25rem;
 }
 
+.employee-stats-screen {
+  background: linear-gradient(180deg, #1a2030, #151c2a);
+  color: #eef2ff;
+  border-radius: 22px;
+  padding: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.stats-screen-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stats-screen-head h3 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.stats-screen-icons {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 1.4rem;
+  color: #22d3ee;
+}
+
+.stats-block-title {
+  margin: 0.9rem 0 0.45rem;
+  font-size: 1.9rem;
+}
+
+.stats-week-card {
+  background: #343a47;
+  border-radius: 20px;
+  padding: 0.95rem;
+  margin-bottom: 0.85rem;
+}
+
+.stats-week-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.stats-week-total {
+  font-size: 2.2rem;
+  font-weight: 600;
+}
+
+.stats-week-arrow {
+  font-size: 2rem;
+  color: #e2e8f0;
+}
+
+.stats-chart-wrap {
+  position: relative;
+  height: 170px;
+  margin-top: 0.6rem;
+  padding-right: 3.4rem;
+}
+
+.stats-grid-line {
+  position: absolute;
+  left: 0;
+  right: 3.2rem;
+  border-top: 1px dashed rgba(226, 232, 240, 0.5);
+}
+
+.stats-grid-line.top {
+  top: 8px;
+}
+
+.stats-grid-line.mid {
+  top: 83px;
+}
+
+.stats-axis-label {
+  position: absolute;
+  right: 0;
+  color: #f1f5f9;
+  font-size: 1.45rem;
+}
+
+.stats-axis-label.axis-top {
+  top: -2px;
+}
+
+.stats-axis-label.axis-mid {
+  top: 72px;
+}
+
+.stats-axis-label.axis-zero {
+  bottom: 6px;
+}
+
+.stats-bars {
+  position: absolute;
+  left: 0;
+  right: 3.4rem;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.stats-bar-col {
+  text-align: center;
+}
+
+.stats-bar {
+  width: 84%;
+  margin: 0 auto;
+  border-radius: 10px 10px 3px 3px;
+}
+
+.stats-bar.earnings {
+  background: #9ca7ff;
+}
+
+.stats-bar.hours {
+  background: #f3a2a6;
+}
+
+.stats-bar-day {
+  margin-top: 0.3rem;
+  text-transform: lowercase;
+  font-size: 1.25rem;
+  color: #e5e7eb;
+}
+
+.stats-bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  text-align: center;
+  padding-top: 0.35rem;
+  color: #9ca3af;
+  font-size: 1.2rem;
+}
+
+.stats-bottom-nav .active {
+  color: #d9f99d;
+}
+
 .app {
   width: min(1320px, calc(100vw - 2rem));
   margin-inline: auto;
