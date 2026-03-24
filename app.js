@@ -43,6 +43,8 @@ const state = {
     tolyatti: { month: new Date(), selectedDate: todayISO(), open: false },
   },
   employeeEarningsRange: defaultEmployeeEarningsRange(),
+  employeeCabinetTab: "calendar",
+  employeeAttendanceMessage: "",
   employeeFilter: { query: "", department: "all", position: "all" },
   employeeEditMode: false,
   myCabinetPanels: { profile: true, earnings: true, kpi: true, shifts: true, money: true },
@@ -1887,6 +1889,9 @@ function renderMyCabinet() {
   const weekStats = computeEmployeeWeeklyStats(u);
   const weekEarningsChart = buildWeeklyStatsBars(weekStats.days, "earnings");
   const weekHoursChart = buildWeeklyStatsBars(weekStats.days, "hours");
+  const activeTab = state.employeeCabinetTab || "calendar";
+  const calendarMonth = state.employeeMonth;
+  const calendarMarkup = buildEmployeeDepartmentCalendar(u, calendarMonth);
   el.myProfile.innerHTML = `
     <div class="cabinet-hero">
       <div>
@@ -1899,7 +1904,27 @@ function renderMyCabinet() {
       </div>
     </div>
 
-    <section class="employee-stats-screen">
+    <div class="employee-mobile-tabs">
+      <button type="button" class="employee-mobile-tab ${activeTab === "calendar" ? "active" : ""}" data-employee-tab="calendar">Календарь</button>
+      <button type="button" class="employee-mobile-tab ${activeTab === "shifts" ? "active" : ""}" data-employee-tab="shifts">Смены</button>
+      <button type="button" class="employee-mobile-tab ${activeTab === "stats" ? "active" : ""}" data-employee-tab="stats">Статистика</button>
+      <button type="button" class="employee-mobile-tab ${activeTab === "settings" ? "active" : ""}" data-employee-tab="settings">Настройки</button>
+    </div>
+
+    <section class="employee-calendar-screen ${activeTab === "calendar" ? "" : "hidden"}">
+      ${calendarMarkup}
+    </section>
+
+    <section class="employee-shifts-screen ${activeTab === "shifts" ? "" : "hidden"}">
+      <div class="attendance-card shifts-qr-card">
+        <h3>Открытие / закрытие смены по QR</h3>
+        <p class="dict-hint">Статус: <b>${attendanceState}</b></p>
+        <p class="dict-hint">${state.employeeAttendanceMessage || "После сканирования появится отметка о времени открытия/закрытия."}</p>
+        <button class="btn btn-primary" id="scan-attendance-btn" type="button">Сканировать QR-код</button>
+      </div>
+    </section>
+
+    <section class="employee-stats-screen ${activeTab === "stats" ? "" : "hidden"}">
       <div class="stats-screen-head">
         <h3>Статистика</h3>
         <div class="stats-screen-icons">
@@ -1937,7 +1962,7 @@ function renderMyCabinet() {
       </div>
     </section>
 
-    <div class="cabinet-section">
+    <div class="cabinet-section ${activeTab === "settings" ? "" : "hidden"}">
       <button class="cabinet-section-toggle" type="button" id="cab-profile-toggle">${p.profile ? "скрыть" : "открыть"} • Профиль и настройки периода</button>
       <div class="cabinet-section-content ${p.profile ? "" : "hidden"}">
         <div class="employee-kpi-grid compact-grid">
@@ -1952,7 +1977,7 @@ function renderMyCabinet() {
       </div>
     </div>
 
-    <div class="cabinet-section">
+    <div class="cabinet-section ${activeTab === "settings" ? "" : "hidden"}">
       <button class="cabinet-section-toggle" type="button" id="cab-earnings-toggle">скрыть • Заработок за период</button>
       <div class="cabinet-section-content" id="cab-earnings-content">
         <div class="earnings-range-card">
@@ -1973,7 +1998,7 @@ function renderMyCabinet() {
       </div>
     </div>
 
-    <div class="cabinet-section">
+    <div class="cabinet-section ${activeTab === "settings" ? "" : "hidden"}">
       <button class="cabinet-section-toggle" type="button" id="cab-kpi-toggle">${p.kpi ? "скрыть" : "открыть"} • Показатели и QR</button>
       <div class="cabinet-section-content ${p.kpi ? "" : "hidden"}">
         <div class="employee-kpi-grid">
@@ -1985,11 +2010,6 @@ function renderMyCabinet() {
         <div class="employee-kpi-grid compact-grid">
           <div class="kpi-card"><span>Сегодняшняя смена</span><strong>${todayShift ? `${todayShift.start || "сделка"}${todayShift.end ? `–${todayShift.end}` : ""}` : "Нет смены"}</strong></div>
           <div class="kpi-card"><span>Следующая смена</span><strong>${nextShift ? `${formatDateRU(nextShift.date)} • ${nextShift.start || "сделка"}${nextShift.end ? `–${nextShift.end}` : ""}` : "Не назначена"}</strong></div>
-        </div>
-        <div class="attendance-card">
-          <h3>Отметка прихода/ухода по QR</h3>
-          <p class="dict-hint">Статус: <b>${attendanceState}</b></p>
-          <button class="btn btn-primary" id="scan-attendance-btn" type="button">Сканировать QR-код</button>
         </div>
         <p><strong>Итог за месяц:</strong> начислено <b>${metrics.gross.toFixed(2)} ₽</b>, НДФЛ <b>${metrics.ndfl.toFixed(2)} ₽</b>, премии <b>${metrics.bonuses.toFixed(2)} ₽</b>, штрафы <b>${metrics.fines.toFixed(2)} ₽</b>, выплачено <b>${metrics.paid.toFixed(2)} ₽</b>, осталось к выплате <b>${metrics.remaining.toFixed(2)} ₽</b>.</p>
       </div>
@@ -2006,6 +2026,22 @@ function renderMyCabinet() {
   };
   wireCabinetPanel("cab-profile-toggle", "profile");
   wireCabinetPanel("cab-kpi-toggle", "kpi");
+  el.myProfile.querySelectorAll("[data-employee-tab]").forEach((btn) => {
+    btn.onclick = () => {
+      state.employeeCabinetTab = btn.dataset.employeeTab || "calendar";
+      renderMyCabinet();
+    };
+  });
+
+  const calendarMonthForm = document.getElementById("employee-calendar-month-form");
+  if (calendarMonthForm) {
+    calendarMonthForm.onsubmit = (e) => {
+      e.preventDefault();
+      const chosen = String(new FormData(calendarMonthForm).get("month") || "");
+      if (chosen) state.employeeMonth = chosen;
+      renderMyCabinet();
+    };
+  }
   const earningsToggle = document.getElementById("cab-earnings-toggle");
   const earningsContent = document.getElementById("cab-earnings-content");
   if (earningsToggle && earningsContent) {
@@ -2019,6 +2055,8 @@ function renderMyCabinet() {
   }
 
   if (el.myShiftsToggle && el.myShiftsContent) {
+    const shiftsCard = document.getElementById("my-shifts-card");
+    if (shiftsCard) shiftsCard.classList.toggle("hidden", activeTab !== "shifts");
     el.myShiftsToggle.textContent = state.myCabinetPanels.shifts ? "скрыть" : "открыть";
     el.myShiftsContent.classList.toggle("hidden", !state.myCabinetPanels.shifts);
     el.myShiftsToggle.onclick = () => {
@@ -2028,6 +2066,8 @@ function renderMyCabinet() {
   }
 
   if (el.myMoneyToggle && el.myMoneyContent) {
+    const moneyCard = document.getElementById("my-money-card");
+    if (moneyCard) moneyCard.classList.toggle("hidden", activeTab !== "settings");
     el.myMoneyToggle.textContent = state.myCabinetPanels.money ? "скрыть" : "открыть";
     el.myMoneyContent.classList.toggle("hidden", !state.myCabinetPanels.money);
     el.myMoneyToggle.onclick = () => {
@@ -2067,6 +2107,7 @@ function renderMyCabinet() {
         return;
       }
       const msg = await applyAttendanceMark(u.id);
+      state.employeeAttendanceMessage = msg;
       alert(msg);
       renderMyCabinet();
     };
@@ -2216,6 +2257,60 @@ function formatHoursLabel(hours) {
   const h = Math.floor(hours);
   const min = Math.round((hours - h) * 60);
   return `${h}ч ${String(min).padStart(2, "0")}мин`;
+}
+
+function buildEmployeeDepartmentCalendar(user, month) {
+  const [year, monthNum] = month.split("-").map(Number);
+  const firstDate = new Date(year, monthNum - 1, 1);
+  const lastDate = new Date(year, monthNum, 0);
+  const startWeekday = (firstDate.getDay() + 6) % 7;
+  const daysInMonth = lastDate.getDate();
+  const monthLabel = firstDate.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  const deptUsers = state.data.users.filter((x) => x.role === "employee" && x.department === user.department);
+  const deptIds = new Set(deptUsers.map((x) => x.id));
+  const shiftsByDate = new Map();
+  state.data.shifts
+    .filter((s) => deptIds.has(s.userId))
+    .filter((s) => s.date.startsWith(month))
+    .forEach((shift) => {
+      const list = shiftsByDate.get(shift.date) || [];
+      const person = deptUsers.find((x) => x.id === shift.userId);
+      if (person) {
+        list.push({ userId: person.id, shortName: `${person.lastName} ${person.firstName[0]}.` });
+        shiftsByDate.set(shift.date, list);
+      }
+    });
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i += 1) cells.push('<div class="emp-cal-cell empty"></div>');
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const iso = `${month}-${String(day).padStart(2, "0")}`;
+    const dayShifts = shiftsByDate.get(iso) || [];
+    const badges = dayShifts
+      .slice(0, 3)
+      .map((item) => `<span class="emp-cal-badge ${item.userId === user.id ? "mine" : ""}">${item.shortName}</span>`)
+      .join("");
+    const extra = dayShifts.length > 3 ? `<span class="emp-cal-more">+${dayShifts.length - 3}</span>` : "";
+    cells.push(`<div class="emp-cal-cell ${iso === todayISO() ? "today" : ""}">
+      <div class="emp-cal-day">${day}</div>
+      <div class="emp-cal-badges">${badges}${extra}</div>
+    </div>`);
+  }
+
+  return `
+    <div class="employee-calendar-card">
+      <form id="employee-calendar-month-form" class="inline-form">
+        <label>Месяц
+          <select name="month">${buildMonthOptions(18).map((m) => `<option value="${m.value}" ${m.value === month ? "selected" : ""}>${m.label}</option>`).join("")}</select>
+        </label>
+        <button class="btn btn-secondary" type="submit">Показать</button>
+      </form>
+      <h3 class="employee-calendar-title">${monthLabel}</h3>
+      <div class="emp-cal-weekdays"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>
+      <div class="emp-cal-grid">${cells.join("")}</div>
+      <p class="dict-hint">Фиолетовые метки — коллеги отдела, синяя метка — вы.</p>
+    </div>
+  `;
 }
 
 function renderFinanceHistory() {
