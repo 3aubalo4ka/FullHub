@@ -42,9 +42,10 @@ const state = {
     samara_drivers: { month: new Date(), selectedDate: todayISO(), open: false },
     tolyatti: { month: new Date(), selectedDate: todayISO(), open: false },
   },
+  employeeEarningsRange: defaultEmployeeEarningsRange(),
   employeeFilter: { query: "", department: "all", position: "all" },
   employeeEditMode: false,
-  myCabinetPanels: { profile: true, kpi: true, shifts: true, money: true },
+  myCabinetPanels: { profile: true, earnings: true, kpi: true, shifts: true, money: true },
 };
 
 const el = {
@@ -1879,6 +1880,10 @@ function renderMyCabinet() {
       : Number(u.hourlyRate || 0);
 
   const p = state.myCabinetPanels;
+  const earningsRange = normalizeEmployeeEarningsRange(state.employeeEarningsRange);
+  state.employeeEarningsRange = earningsRange;
+  const earnings = computeEmployeeEarningsForRange(u, earningsRange.from, earningsRange.to);
+  const earningsBars = buildEmployeeEarningsBars(earnings.series);
   el.myProfile.innerHTML = `
     <div class="cabinet-hero">
       <div>
@@ -1903,6 +1908,27 @@ function renderMyCabinet() {
           <label>Месяц <select name="month">${buildMonthOptions(18).map((m) => `<option value="${m.value}" ${m.value === month ? "selected" : ""}>${m.label}</option>`).join("")}</select></label>
           <button class="btn btn-secondary" type="submit">Показать</button>
         </form>
+      </div>
+    </div>
+
+    <div class="cabinet-section">
+      <button class="cabinet-section-toggle" type="button" id="cab-earnings-toggle">скрыть • Заработок за период</button>
+      <div class="cabinet-section-content" id="cab-earnings-content">
+        <div class="earnings-range-card">
+          <form id="earnings-range-form" class="earnings-range-form">
+            <label>Начало <input type="date" name="from" value="${earningsRange.from}" max="${earningsRange.to}" /></label>
+            <label>Конец <input type="date" name="to" value="${earningsRange.to}" min="${earningsRange.from}" /></label>
+            <button class="btn btn-secondary" type="submit">Показать</button>
+          </form>
+          <div class="employee-kpi-grid compact-grid">
+            <div class="kpi-card"><span>Заработок за период</span><strong>${earnings.total.toFixed(2)} ₽</strong></div>
+            <div class="kpi-card"><span>Отработано смен</span><strong>${earnings.shiftCount}</strong></div>
+          </div>
+          <div class="earnings-chart-wrap">
+            <div class="earnings-chart-title">График ЗП за период</div>
+            <div class="earnings-chart">${earningsBars || '<p class="dict-hint">Нет закрытых смен за выбранный период.</p>'}</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1939,6 +1965,17 @@ function renderMyCabinet() {
   };
   wireCabinetPanel("cab-profile-toggle", "profile");
   wireCabinetPanel("cab-kpi-toggle", "kpi");
+  const earningsToggle = document.getElementById("cab-earnings-toggle");
+  const earningsContent = document.getElementById("cab-earnings-content");
+  if (earningsToggle && earningsContent) {
+    const isOpen = state.myCabinetPanels.earnings !== false;
+    earningsToggle.textContent = `${isOpen ? "скрыть" : "открыть"} • Заработок за период`;
+    earningsContent.classList.toggle("hidden", !isOpen);
+    earningsToggle.onclick = () => {
+      state.myCabinetPanels.earnings = !isOpen;
+      renderMyCabinet();
+    };
+  }
 
   if (el.myShiftsToggle && el.myShiftsContent) {
     el.myShiftsToggle.textContent = state.myCabinetPanels.shifts ? "скрыть" : "открыть";
@@ -1964,6 +2001,17 @@ function renderMyCabinet() {
       e.preventDefault();
       const chosen = String(new FormData(monthForm).get("month") || "");
       if (chosen) state.employeeMonth = chosen;
+      renderMyCabinet();
+    };
+  }
+  const earningsForm = document.getElementById("earnings-range-form");
+  if (earningsForm) {
+    earningsForm.onsubmit = (e) => {
+      e.preventDefault();
+      const fd = new FormData(earningsForm);
+      const from = String(fd.get("from") || "");
+      const to = String(fd.get("to") || "");
+      state.employeeEarningsRange = normalizeEmployeeEarningsRange({ from, to });
       renderMyCabinet();
     };
   }
@@ -1998,6 +2046,72 @@ function renderMyCabinet() {
       .map((row) => `<tr><td>${row.date}</td><td>${row.type}</td><td>${row.amount.toFixed(2)} ₽</td><td>${row.note}</td></tr>`)
       .join("")}</tbody>`;
   }
+}
+
+function defaultEmployeeEarningsRange() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  return {
+    from: toISODateLocal(new Date(y, m, 1)),
+    to: toISODateLocal(new Date(y, m + 1, 0)),
+  };
+}
+
+function toISODateLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function normalizeEmployeeEarningsRange(range) {
+  const fallback = defaultEmployeeEarningsRange();
+  let from = String(range?.from || fallback.from);
+  let to = String(range?.to || fallback.to);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) from = fallback.from;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) to = fallback.to;
+  if (from > to) [from, to] = [to, from];
+  return { from, to };
+}
+
+function computeEmployeeEarningsForRange(user, from, to) {
+  const rangeStart = new Date(`${from}T00:00:00`);
+  const rangeEnd = new Date(`${to}T23:59:59`);
+  const filteredShifts = state.data.shifts
+    .filter((s) => s.userId === user.id)
+    .filter((s) => {
+      const d = new Date(s.date);
+      return d >= rangeStart && d <= rangeEnd;
+    })
+    .filter(isShiftClosedForPayroll)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const byDate = new Map();
+  filteredShifts.forEach((shift) => {
+    const month = shift.date.slice(0, 7);
+    const amount = calculateShiftPay(shift, user, month);
+    byDate.set(shift.date, Number(byDate.get(shift.date) || 0) + amount);
+  });
+
+  const series = [...byDate.entries()].map(([date, amount]) => ({ date, amount }));
+  const total = series.reduce((acc, item) => acc + item.amount, 0);
+  return { total, shiftCount: filteredShifts.length, series };
+}
+
+function buildEmployeeEarningsBars(series) {
+  if (!series.length) return "";
+  const maxAmount = Math.max(...series.map((item) => item.amount), 1);
+  return series
+    .map((item) => {
+      const height = Math.max(6, Math.round((item.amount / maxAmount) * 120));
+      return `<div class="earnings-bar-item">
+        <div class="earnings-bar-value">${item.amount.toFixed(0)} ₽</div>
+        <div class="earnings-bar" style="height:${height}px"></div>
+        <div class="earnings-bar-date">${formatDateRU(item.date).slice(0, 5)}</div>
+      </div>`;
+    })
+    .join("");
 }
 
 function renderFinanceHistory() {

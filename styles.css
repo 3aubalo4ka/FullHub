@@ -245,6 +245,73 @@ select:focus {
   padding: 0.2rem 0.55rem;
 }
 
+.earnings-range-card {
+  background: linear-gradient(160deg, #121826, #0b1220);
+  color: #e2e8f0;
+  border: 1px solid #293246;
+  border-radius: 14px;
+  padding: 0.9rem;
+}
+
+.earnings-range-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: end;
+  margin-bottom: 0.8rem;
+}
+
+.earnings-range-form label {
+  color: #cbd5e1;
+}
+
+.earnings-range-form input {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+
+.earnings-chart-wrap {
+  margin-top: 0.5rem;
+}
+
+.earnings-chart-title {
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+}
+
+.earnings-chart {
+  display: flex;
+  align-items: end;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.earnings-bar-item {
+  min-width: 52px;
+  text-align: center;
+}
+
+.earnings-bar {
+  width: 100%;
+  border-radius: 10px 10px 4px 4px;
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  box-shadow: 0 8px 14px rgba(37, 99, 235, 0.35);
+}
+
+.earnings-bar-value {
+  font-size: 0.73rem;
+  color: #bfdbfe;
+  margin-bottom: 0.25rem;
+}
+
+.earnings-bar-date {
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  margin-top: 0.25rem;
+}
+
 .app {
   width: min(1320px, calc(100vw - 2rem));
   margin-inline: auto;
