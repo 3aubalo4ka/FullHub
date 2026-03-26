@@ -853,6 +853,16 @@ select:focus {
   background: #fff;
 }
 
+.attendance-qr-fallback {
+  width: 200px;
+  min-height: 200px;
+  margin: 0.4rem 0;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .attendance-card {
   margin-top: 0.9rem;
   padding: 0.9rem;

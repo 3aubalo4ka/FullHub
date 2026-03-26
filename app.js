@@ -517,10 +517,14 @@ function renderAttendanceQrCard() {
   if (!el.attendanceQrCanvas || !el.attendanceQrToken) return;
   const token = buildTodayAttendanceToken();
   el.attendanceQrToken.textContent = token;
+  const parent = el.attendanceQrCanvas.parentElement;
+  const fallbackHolder = parent ? parent.querySelector(".attendance-qr-fallback") : null;
 
   if (!window.QRCode) return;
 
   if (typeof window.QRCode.toCanvas === "function") {
+    el.attendanceQrCanvas.classList.remove("hidden");
+    if (fallbackHolder) fallbackHolder.remove();
     window.QRCode.toCanvas(el.attendanceQrCanvas, token, {
       width: 200,
       margin: 1,
@@ -529,21 +533,13 @@ function renderAttendanceQrCard() {
   }
 
   if (typeof window.QRCode === "function") {
-    const parent = el.attendanceQrCanvas.parentElement;
     if (!parent) return;
+    el.attendanceQrCanvas.classList.add("hidden");
 
     let holder = parent.querySelector(".attendance-qr-fallback");
     if (!holder) {
       holder = document.createElement("div");
       holder.className = "attendance-qr-fallback";
-      holder.style.width = "200px";
-      holder.style.height = "200px";
-      holder.style.background = "#fff";
-      holder.style.border = "1px solid #ddd";
-      holder.style.borderRadius = "8px";
-      holder.style.display = "flex";
-      holder.style.alignItems = "center";
-      holder.style.justifyContent = "center";
       parent.appendChild(holder);
     }
 
