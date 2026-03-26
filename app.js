@@ -1889,6 +1889,8 @@ function renderMyCabinet() {
   const weekStats = computeEmployeeWeeklyStats(u);
   const weekEarningsChart = buildWeeklyStatsBars(weekStats.days, "earnings");
   const weekHoursChart = buildWeeklyStatsBars(weekStats.days, "hours");
+  const peakEarningsDay = findPeakWeekDay(weekStats.days, "earnings");
+  const peakHoursDay = findPeakWeekDay(weekStats.days, "hours");
   const activeTab = state.employeeCabinetTab || "calendar";
   const calendarMonth = state.employeeMonth;
   const calendarMarkup = buildEmployeeDepartmentCalendar(u, calendarMonth);
@@ -1908,7 +1910,7 @@ function renderMyCabinet() {
       <button type="button" class="employee-mobile-tab ${activeTab === "calendar" ? "active" : ""}" data-employee-tab="calendar">Календарь</button>
       <button type="button" class="employee-mobile-tab ${activeTab === "shifts" ? "active" : ""}" data-employee-tab="shifts">Смены</button>
       <button type="button" class="employee-mobile-tab ${activeTab === "stats" ? "active" : ""}" data-employee-tab="stats">Статистика</button>
-      <button type="button" class="employee-mobile-tab ${activeTab === "settings" ? "active" : ""}" data-employee-tab="settings">Настройки</button>
+      <button type="button" class="employee-mobile-tab ${activeTab === "settings" ? "active" : ""}" data-employee-tab="settings">Кабинет</button>
     </div>
 
     <section class="employee-calendar-screen ${activeTab === "calendar" ? "" : "hidden"}">
@@ -1941,6 +1943,7 @@ function renderMyCabinet() {
           </div>
           <div class="stats-week-arrow">›</div>
         </div>
+        <div class="stats-mini-info">Пиковый день: <b>${peakEarningsDay.label}</b> • <b>${peakEarningsDay.value.toFixed(2)} ₽</b></div>
         ${weekEarningsChart}
       </div>
       <div class="stats-block-title">⏰ Рабочие часы</div>
@@ -1952,13 +1955,8 @@ function renderMyCabinet() {
           </div>
           <div class="stats-week-arrow">›</div>
         </div>
+        <div class="stats-mini-info">Самый загруженный день: <b>${peakHoursDay.label}</b> • <b>${formatHoursLabel(peakHoursDay.value)}</b></div>
         ${weekHoursChart}
-      </div>
-      <div class="stats-bottom-nav">
-        <span>Календарь</span>
-        <span>Смены</span>
-        <span class="active">Статистика</span>
-        <span>Настройки</span>
       </div>
     </section>
 
@@ -2257,6 +2255,15 @@ function formatHoursLabel(hours) {
   const h = Math.floor(hours);
   const min = Math.round((hours - h) * 60);
   return `${h}ч ${String(min).padStart(2, "0")}мин`;
+}
+
+function findPeakWeekDay(days, metric) {
+  let best = { shortLabel: "—", value: 0 };
+  days.forEach((day) => {
+    const value = Number(day[metric] || 0);
+    if (value >= best.value) best = { shortLabel: day.shortLabel, value };
+  });
+  return { label: best.shortLabel.toUpperCase(), value: best.value };
 }
 
 function buildEmployeeDepartmentCalendar(user, month) {
