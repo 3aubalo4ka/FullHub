@@ -9,43 +9,51 @@
   </head>
   <body>
     <main class="auth-shell" id="auth-shell">
-      <section class="auth-card auth-proto">
-        <div class="auth-hero">
-          <div class="auth-logo-box" aria-hidden="true">📦</div>
-          <h1>FullHub</h1>
-          <p class="auth-subtitle">Корпоративная система для сотрудников Фулфилмента</p>
+      <section class="auth-card auth-layout">
+        <div class="auth-side-left">
+          <div class="auth-brand-row">
+            <div class="auth-logo-box" aria-hidden="true">📦</div>
+            <h1>FullHub</h1>
+          </div>
+          <p class="auth-subtitle">Единая система управления<br />сменами и выплатами</p>
+
+          <div class="auth-feature-list" aria-hidden="true">
+            <div class="auth-feature-line"><span>🗓️</span><span>Удобный график смен</span></div>
+            <div class="auth-feature-line"><span>⚡</span><span>Учёт рабочего времени</span></div>
+            <div class="auth-feature-line"><span>📊</span><span>Выплаты и статистика</span></div>
+          </div>
+
+          <div class="auth-illustration" aria-hidden="true">
+            <div class="auth-illustration-screen">📅</div>
+            <div class="auth-illustration-pill">09:00</div>
+            <div class="auth-illustration-bars">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
         </div>
 
-        <div class="auth-feature-list" aria-hidden="true">
-          <div class="auth-feature-row">
-            <span class="auth-feature-icon">👥</span>
-            <span class="auth-feature-text">График смен</span>
-            <span class="auth-feature-icon">❔</span>
-          </div>
-          <div class="auth-feature-row">
-            <span class="auth-feature-icon">⚡</span>
-            <span class="auth-feature-text">Учет рабочего времени</span>
-          </div>
-          <div class="auth-feature-row">
-            <span class="auth-feature-icon">💲</span>
-            <span class="auth-feature-text">Расчет заработной платы</span>
-          </div>
+        <div class="auth-side-right">
+          <button type="button" id="open-login-btn" class="btn auth-open-login-btn hidden">Войти в личный кабинет</button>
+          <form id="login-form" class="stack auth-login-form">
+            <h2>Вход в личный кабинет</h2>
+            <p class="dict-hint">Введите данные для входа</p>
+            <label>
+              Телефон
+              <input id="login-phone" required placeholder="+7 (999) 123-45-67" />
+            </label>
+            <label>
+              Пароль
+              <input id="login-password" type="password" required placeholder="••••••••" />
+            </label>
+            <button type="submit" class="btn auth-enter-btn">Войти</button>
+            <label class="auth-remember"><input type="checkbox" /> Запомнить меня</label>
+            <p class="error" id="login-error"></p>
+            <div class="auth-help-text">
+              <strong>Не получается войти?</strong>
+              <p>Требуется обратиться к администратору</p>
+            </div>
+          </form>
         </div>
-
-        <button type="button" id="open-login-btn" class="btn auth-open-login-btn">Войти в личный кабинет</button>
-
-        <form id="login-form" class="stack auth-login-form hidden">
-          <label>
-            Логин (телефон)
-            <input id="login-phone" required placeholder="79990000000" />
-          </label>
-          <label>
-            Пароль
-            <input id="login-password" type="password" required placeholder="••••••••" />
-          </label>
-          <button type="submit" class="btn auth-enter-btn">🥋 Войти в личный кабинет</button>
-          <p class="error" id="login-error"></p>
-        </form>
       </section>
     </main>
 
